@@ -55,7 +55,13 @@ describe('sammleAenderungen', () => {
     const state = zustand({
       namen: [{ name: 'Anna', geaendertAm: 500 }],
       einstellungenGeaendertAm: { startwert: 700 },
-      settings: { startwert: 9, startwertVierer: 24, theme: 'system', bettlerAktiv: false },
+      settings: {
+        startwert: 9,
+        startwertVierer: 24,
+        theme: 'system',
+        bettlerAktiv: false,
+        schneiderAktiv: false,
+      },
       ausstehend: { spiele: [], ranks: [], kategorien: [], namen: ['anna'], einstellungen: ['startwert'] },
     })
 

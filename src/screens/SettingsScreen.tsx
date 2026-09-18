@@ -58,6 +58,23 @@ export function SettingsScreen({ state }: Props) {
             label="Startwert Vierer"
           />
         </div>
+        <hr className="trenner" />
+        <div className="reihe reihe--verteilt">
+          <div className="wachsen">
+            <div style={{ fontWeight: 600 }}>Schneider-Regel</div>
+            <div className="hinweis">
+              Macht der Verlierer eines Bummerls keinen einzigen Punkt, zählt das Bummerl doppelt.
+            </div>
+          </div>
+          <button
+            type="button"
+            className="segmente__knopf"
+            aria-pressed={state.settings.schneiderAktiv}
+            onClick={() => actions.setSettings({ schneiderAktiv: !state.settings.schneiderAktiv })}
+          >
+            {state.settings.schneiderAktiv ? 'Aktiv' : 'Inaktiv'}
+          </button>
+        </div>
       </section>
 
       <section className="karte">

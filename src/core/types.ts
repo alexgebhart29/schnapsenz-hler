@@ -12,6 +12,12 @@ export type Settings = {
   theme: Theme
   /** Schaltet die Kategorie „Bettler“ im Vierer frei. Wird synchronisiert. */
   bettlerAktiv: boolean
+  /**
+   * Schneider-Regel: Bleibt der Verlierer eines Bummerls beim Startwert
+   * (macht also keinen einzigen Punkt), zählt das Bummerl doppelt. Wird
+   * synchronisiert.
+   */
+  schneiderAktiv: boolean
 }
 
 /** Zweier-Schnapsen (1 gegen 1) oder Vierer-Schnapsen (2 gegen 2 in festen Teams). */
@@ -47,6 +53,8 @@ export type BummerlEintrag = {
   /** Punktestand beider Spieler bei Abschluss des Bummerls. */
   endstand: [number, number]
   beendetAm: string
+  /** Verlierer blieb beim Startwert (0 Punkte gemacht) – zählt doppelt. */
+  schneider?: boolean
 }
 
 /** Momentaufnahme für die Undo-Funktion. */

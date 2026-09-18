@@ -136,6 +136,11 @@ function SpielEintrag({
                   <span className="wachsen" style={{ fontWeight: 600 }}>
                     {parteiName(spiel, eintrag.gewinner)}
                   </span>
+                  {eintrag.schneider && (
+                    <span className="abzeichen abzeichen--rang" title="Verlierer hat keinen Punkt gemacht, zählte doppelt">
+                      Schneider ×2
+                    </span>
+                  )}
                   <span className="muted mono-zahl">
                     {eintrag.endstand[0]} : {eintrag.endstand[1]}
                   </span>

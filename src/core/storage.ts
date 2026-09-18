@@ -46,6 +46,7 @@ export function initialState(): AppState {
       startwertVierer: DEFAULT_STARTWERT_VIERER,
       theme: 'system',
       bettlerAktiv: false,
+      schneiderAktiv: false,
     },
     einstellungenGeaendertAm: {},
     namen: [],
@@ -83,6 +84,7 @@ function parseSettings(wert: unknown): Settings {
     theme:
       theme === 'hell' || theme === 'dunkel' || theme === 'system' ? (theme as Theme) : 'system',
     bettlerAktiv: roh.bettlerAktiv === true,
+    schneiderAktiv: roh.schneiderAktiv === true,
   }
 }
 
@@ -127,12 +129,16 @@ function parseKategorien(wert: unknown): Kategorie[] {
 
 function parseBummerlLog(wert: unknown): BummerlEintrag[] {
   if (!Array.isArray(wert)) return []
-  return wert.filter(istObjekt).map((roh, index) => ({
-    nummer: Math.round(zahl(roh.nummer, index + 1)),
-    gewinner: spielerIndex(roh.gewinner),
-    endstand: paar(roh.endstand, [0, 0]),
-    beendetAm: text(roh.beendetAm, new Date(0).toISOString()),
-  }))
+  return wert.filter(istObjekt).map((roh, index) => {
+    const eintrag: BummerlEintrag = {
+      nummer: Math.round(zahl(roh.nummer, index + 1)),
+      gewinner: spielerIndex(roh.gewinner),
+      endstand: paar(roh.endstand, [0, 0]),
+      beendetAm: text(roh.beendetAm, new Date(0).toISOString()),
+    }
+    if (roh.schneider === true) eintrag.schneider = true
+    return eintrag
+  })
 }
 
 function parseUndoStack(wert: unknown): UndoEintrag[] {

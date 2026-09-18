@@ -8,6 +8,7 @@ import {
   BETTLER_PUNKTE,
   bummerlAbschliessen,
   entschieden,
+  gegner,
   kannAbziehen,
   kannUndo,
   letzterUndoLabel,
@@ -39,6 +40,10 @@ export function GameScreen({ spiel, state }: Props) {
   const beendet = spiel.status === 'beendet'
   const gesamtSieger = beendet ? spielSieger(spiel) : null
   const aenderbar = kannAbziehen(spiel)
+  const schneiderAktiv = state.settings.schneiderAktiv
+  // Steht das Bummerl schon fest, hier vorab anzeigen, ob es als Schneider zählt.
+  const wirdSchneider =
+    sieger !== null && schneiderAktiv && spiel.punkte[gegner(sieger)] === spiel.startwert
 
   const update = (fn: (spiel: Spiel) => Spiel) => actions.updateSpiel(spiel.id, fn)
 
@@ -47,10 +52,11 @@ export function GameScreen({ spiel, state }: Props) {
   const abziehen = (spieler: SpielerIndex, punkte: number) =>
     update((aktuell) => punkteAbziehen(aktuell, spieler, punkte))
 
-  const naechstesBummerl = () => update((aktuell) => bummerlAbschliessen(aktuell))
+  const naechstesBummerl = () =>
+    update((aktuell) => bummerlAbschliessen(aktuell, undefined, undefined, schneiderAktiv))
 
   const beenden = () => {
-    update((aktuell) => spielBeenden(aktuell))
+    update((aktuell) => spielBeenden(aktuell, undefined, schneiderAktiv))
     setDialog(null)
     navigiere({ name: 'historie' })
   }
@@ -133,6 +139,11 @@ export function GameScreen({ spiel, state }: Props) {
                 <span className="wachsen" style={{ fontWeight: 600 }}>
                   {parteiName(spiel, eintrag.gewinner)}
                 </span>
+                {eintrag.schneider && (
+                  <span className="abzeichen abzeichen--rang" title="Verlierer hat keinen Punkt gemacht, zählt doppelt">
+                    Schneider ×2
+                  </span>
+                )}
                 <span className="muted mono-zahl">
                   {eintrag.endstand[0]} : {eintrag.endstand[1]}
                 </span>
@@ -146,10 +157,10 @@ export function GameScreen({ spiel, state }: Props) {
       {sieger !== null && (
         <Dialog
           icon="🏆"
-          titel={`${parteiName(spiel, sieger)} gewinnt das Bummerl!`}
-          text={`Bummerl-Stand: ${spiel.bummerl[0]} : ${spiel.bummerl[1]} → ${
-            sieger === 0 ? spiel.bummerl[0] + 1 : spiel.bummerl[0]
-          } : ${sieger === 1 ? spiel.bummerl[1] + 1 : spiel.bummerl[1]}`}
+          titel={`${parteiName(spiel, sieger)} gewinnt das Bummerl!${wirdSchneider ? ' Schneider!' : ''}`}
+          text={`${wirdSchneider ? 'Der Verlierer hat keinen Punkt gemacht – zählt doppelt. ' : ''}Bummerl-Stand: ${spiel.bummerl[0]} : ${spiel.bummerl[1]} → ${
+            sieger === 0 ? spiel.bummerl[0] + (wirdSchneider ? 2 : 1) : spiel.bummerl[0]
+          } : ${sieger === 1 ? spiel.bummerl[1] + (wirdSchneider ? 2 : 1) : spiel.bummerl[1]}`}
           aktionen={
             <>
               <button type="button" className="btn btn--primaer btn--gross" onClick={naechstesBummerl}>

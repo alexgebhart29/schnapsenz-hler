@@ -85,7 +85,12 @@ function pruefeNamen(wert: unknown): NamensEintrag[] | string {
 }
 
 /** Nur bekannte Einstellungen werden synchronisiert; das Theme bleibt lokal. */
-const ERLAUBTE_EINSTELLUNGEN = new Set(['startwert', 'startwertVierer', 'bettlerAktiv'])
+const ERLAUBTE_EINSTELLUNGEN = new Set([
+  'startwert',
+  'startwertVierer',
+  'bettlerAktiv',
+  'schneiderAktiv',
+])
 
 function pruefeEinstellungen(wert: unknown): EinstellungsEintrag[] | string {
   if (wert === undefined) return []

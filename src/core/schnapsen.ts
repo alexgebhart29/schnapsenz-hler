@@ -167,38 +167,63 @@ export function punkteAbziehen(spiel: Spiel, gewinner: SpielerIndex, punkte: num
   }
 }
 
-function bummerlEintrag(spiel: Spiel, gewinner: SpielerIndex, zeitpunkt: string): BummerlEintrag {
-  return {
+function bummerlEintrag(
+  spiel: Spiel,
+  gewinner: SpielerIndex,
+  zeitpunkt: string,
+  schneider: boolean,
+): BummerlEintrag {
+  const eintrag: BummerlEintrag = {
     nummer: spiel.bummerlLog.length + 1,
     gewinner,
     endstand: [spiel.punkte[0], spiel.punkte[1]],
     beendetAm: zeitpunkt,
   }
+  if (schneider) eintrag.schneider = true
+  return eintrag
+}
+
+/**
+ * Ermittelt, ob der Verlierer beim Startwert geblieben ist – also während des
+ * gesamten Bummerls keine einzige Partie gewonnen hat („Schneider“).
+ */
+function istSchneider(spiel: Spiel, sieger: SpielerIndex): boolean {
+  return spiel.punkte[gegner(sieger)] === spiel.startwert
 }
 
 /**
  * Schließt das laufende Bummerl für den angegebenen Gewinner ab und setzt die
  * Zähler auf den Startwert zurück. Ohne Gewinner-Angabe wird der automatisch
  * erkannte Gewinner (Zähler bei 0) verwendet.
+ *
+ * Ist die Schneider-Regel aktiv und hat der Verlierer während des ganzen
+ * Bummerls keinen einzigen Punkt gemacht, zählt das Bummerl doppelt.
  */
 export function bummerlAbschliessen(
   spiel: Spiel,
   gewinner?: SpielerIndex,
   zeitpunkt: string = new Date().toISOString(),
+  schneiderAktiv: boolean = false,
 ): Spiel {
   if (spiel.status === 'beendet') return spiel
   const sieger = gewinner ?? entschieden(spiel)
   if (sieger === null) return spiel
 
+  const schneider = schneiderAktiv && istSchneider(spiel, sieger)
+  const zuwachs = schneider ? 2 : 1
+
   const bummerl: [number, number] = [spiel.bummerl[0], spiel.bummerl[1]]
-  bummerl[sieger] += 1
+  bummerl[sieger] += zuwachs
 
   return {
     ...spiel,
     bummerl,
-    bummerlLog: [...spiel.bummerlLog, bummerlEintrag(spiel, sieger, zeitpunkt)],
+    bummerlLog: [...spiel.bummerlLog, bummerlEintrag(spiel, sieger, zeitpunkt, schneider)],
     punkte: [spiel.startwert, spiel.startwert],
-    undoStack: mitSnapshot(spiel, `Bummerl an ${spiel.spieler[sieger]}`),
+    undoStack: mitSnapshot(
+      spiel,
+      `Bummerl an ${spiel.spieler[sieger]}${schneider ? ' (Schneider, zählt doppelt)' : ''}`,
+    ),
   }
 }
 
@@ -206,11 +231,15 @@ export function bummerlAbschliessen(
  * Beendet das Spiel. Ein noch offenes, aber entschiedenes Bummerl wird vorher
  * gutgeschrieben.
  */
-export function spielBeenden(spiel: Spiel, zeitpunkt: string = new Date().toISOString()): Spiel {
+export function spielBeenden(
+  spiel: Spiel,
+  zeitpunkt: string = new Date().toISOString(),
+  schneiderAktiv: boolean = false,
+): Spiel {
   if (spiel.status === 'beendet') return spiel
 
   const offen = entschieden(spiel)
-  const basis = offen === null ? spiel : bummerlAbschliessen(spiel, offen, zeitpunkt)
+  const basis = offen === null ? spiel : bummerlAbschliessen(spiel, offen, zeitpunkt, schneiderAktiv)
 
   return {
     ...basis,

@@ -38,6 +38,13 @@ const SYNC_EINSTELLUNGEN = {
       bettlerAktiv: wert === true,
     }),
   },
+  schneiderAktiv: {
+    lesen: (settings: Settings) => settings.schneiderAktiv,
+    schreiben: (settings: Settings, wert: unknown): Settings => ({
+      ...settings,
+      schneiderAktiv: wert === true,
+    }),
+  },
 } as const
 
 type SyncEinstellungsSchluessel = keyof typeof SYNC_EINSTELLUNGEN

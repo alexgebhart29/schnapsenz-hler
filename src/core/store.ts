@@ -109,6 +109,11 @@ export const actions = {
       ausstehend = markiere(ausstehend, 'einstellungen', ['bettlerAktiv'])
     }
 
+    if (patch.schneiderAktiv !== undefined && patch.schneiderAktiv !== state.settings.schneiderAktiv) {
+      einstellungenGeaendertAm = { ...einstellungenGeaendertAm, schneiderAktiv: jetzt }
+      ausstehend = markiere(ausstehend, 'einstellungen', ['schneiderAktiv'])
+    }
+
     setState({ ...state, settings, einstellungenGeaendertAm, ausstehend })
   },
 
