@@ -1,4 +1,4 @@
-import type { BummerlEintrag, Modus, Spiel, SpielerIndex, UndoEintrag } from './types'
+import type { BummerlEintrag, Kategorie, Modus, Spiel, SpielerIndex, UndoEintrag } from './types'
 
 export const DEFAULT_STARTWERT = 7
 /** Vierer-Schnapsen (2 gegen 2) zählt traditionell von 24 herab statt von 7. */
@@ -22,6 +22,28 @@ export const ABZUG_OPTIONEN: { punkte: number; beschreibung: string }[] = [
   { punkte: 2, beschreibung: 'Gegner hat 1 bis 32 Augen' },
   { punkte: 3, beschreibung: 'Gegner hat keinen Stich (schwarz)' },
 ]
+
+/** Punktewert der Kategorie „Bettler“, falls sie in den Einstellungen aktiviert ist. */
+export const BETTLER_PUNKTE = 4
+
+/**
+ * Feste IDs der mitgelieferten Vierer-Kategorien: Damit ergänzen mehrere
+ * Geräte, die die App gleichzeitig zum ersten Mal starten, dieselben
+ * Einträge statt beim Abgleich Duplikate zu erzeugen.
+ */
+export const STANDARD_KATEGORIEN: { id: string; name: string; punkte: number }[] = [
+  { id: 'standard-gang', name: 'Gang', punkte: 9 },
+  { id: 'standard-10er-gang', name: '10er Gang', punkte: 10 },
+  { id: 'standard-schnapser', name: 'Schnapser', punkte: 6 },
+  { id: 'standard-kontraschnapser', name: 'Kontraschnapser', punkte: 12 },
+  { id: 'standard-bauernschnapser', name: 'Bauernschnapser', punkte: 12 },
+  { id: 'standard-kontrabauernschnapser', name: 'Kontrabauernschnapser', punkte: 24 },
+]
+
+/** Baut die mitgelieferten Kategorien neu auf, z. B. beim allerersten Start. */
+export function standardKategorien(geaendertAm: number): Kategorie[] {
+  return STANDARD_KATEGORIEN.map((eintrag) => ({ ...eintrag, geaendertAm }))
+}
 
 export function normalizeStartwert(wert: number): number {
   if (!Number.isFinite(wert)) return DEFAULT_STARTWERT

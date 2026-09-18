@@ -4,7 +4,7 @@ import { initialState } from './storage'
 import { nachErfolg, sammleAenderungen, wendeAn } from './sync'
 import type { AppState, Rank, Spiel, SyncPaket } from './types'
 
-const leer = (): SyncPaket => ({ spiele: [], ranks: [], namen: [], einstellungen: [] })
+const leer = (): SyncPaket => ({ spiele: [], ranks: [], kategorien: [], namen: [], einstellungen: [] })
 
 function spiel(id: string, geaendertAm: number, bummerl: [number, number] = [0, 0]): Spiel {
   return {
@@ -31,7 +31,7 @@ describe('sammleAenderungen', () => {
     const state = zustand({
       spiele: [spiel('a', 1000)],
       ranks: [rank('r1', 5, 1100)],
-      ausstehend: { spiele: ['a'], ranks: ['r1'], namen: [], einstellungen: [] },
+      ausstehend: { spiele: ['a'], ranks: ['r1'], kategorien: [], namen: [], einstellungen: [] },
     })
 
     const { paket, gesendet } = sammleAenderungen(state)
@@ -43,8 +43,8 @@ describe('sammleAenderungen', () => {
 
   it('schickt Löschungen als Grabstein', () => {
     const state = zustand({
-      grabsteine: { spiele: { a: 2000 }, ranks: {}, namen: {} },
-      ausstehend: { spiele: ['a'], ranks: [], namen: [], einstellungen: [] },
+      grabsteine: { spiele: { a: 2000 }, ranks: {}, kategorien: {}, namen: {} },
+      ausstehend: { spiele: ['a'], ranks: [], kategorien: [], namen: [], einstellungen: [] },
     })
 
     const { paket } = sammleAenderungen(state)
@@ -55,8 +55,8 @@ describe('sammleAenderungen', () => {
     const state = zustand({
       namen: [{ name: 'Anna', geaendertAm: 500 }],
       einstellungenGeaendertAm: { startwert: 700 },
-      settings: { startwert: 9, startwertVierer: 24, theme: 'system' },
-      ausstehend: { spiele: [], ranks: [], namen: ['anna'], einstellungen: ['startwert'] },
+      settings: { startwert: 9, startwertVierer: 24, theme: 'system', bettlerAktiv: false },
+      ausstehend: { spiele: [], ranks: [], kategorien: [], namen: ['anna'], einstellungen: ['startwert'] },
     })
 
     const { paket } = sammleAenderungen(state)
@@ -113,15 +113,15 @@ describe('wendeAn', () => {
   it('behält noch nicht übertragene Löschungen, auch wenn sie alt sind', () => {
     const jetzt = Date.now()
     const state = zustand({
-      grabsteine: { spiele: { alt: jetzt - 200 * 24 * 3600_000 }, ranks: {}, namen: {} },
-      ausstehend: { spiele: ['alt'], ranks: [], namen: [], einstellungen: [] },
+      grabsteine: { spiele: { alt: jetzt - 200 * 24 * 3600_000 }, ranks: {}, kategorien: {}, namen: {} },
+      ausstehend: { spiele: ['alt'], ranks: [], kategorien: [], namen: [], einstellungen: [] },
     })
     const neu = wendeAn(state, leer(), 1, jetzt)
     expect(neu.grabsteine.spiele.alt).toBeDefined()
   })
 
   it('ignoriert eine Wiederauferstehung nach neuerer lokaler Löschung', () => {
-    const state = zustand({ grabsteine: { spiele: { a: 5000 }, ranks: {}, namen: {} } })
+    const state = zustand({ grabsteine: { spiele: { a: 5000 }, ranks: {}, kategorien: {}, namen: {} } })
     const neu = wendeAn(state, { ...leer(), spiele: [{ id: 'a', geaendertAm: 1000, daten: spiel('a', 1000) }] }, 1)
     expect(neu.spiele).toHaveLength(0)
   })
@@ -160,7 +160,12 @@ describe('wendeAn', () => {
   it('räumt alte Grabsteine auf', () => {
     const jetzt = Date.now()
     const state = zustand({
-      grabsteine: { spiele: { alt: jetzt - 200 * 24 * 3600_000, frisch: jetzt - 1000 }, ranks: {}, namen: {} },
+      grabsteine: {
+        spiele: { alt: jetzt - 200 * 24 * 3600_000, frisch: jetzt - 1000 },
+        ranks: {},
+        kategorien: {},
+        namen: {},
+      },
     })
     const neu = wendeAn(state, leer(), 1, jetzt)
     expect(neu.grabsteine.spiele.alt).toBeUndefined()
@@ -172,7 +177,7 @@ describe('nachErfolg', () => {
   it('leert die Warteschlange für unveränderte Einträge', () => {
     const state = zustand({
       spiele: [spiel('a', 1000)],
-      ausstehend: { spiele: ['a'], ranks: [], namen: [], einstellungen: [] },
+      ausstehend: { spiele: ['a'], ranks: [], kategorien: [], namen: [], einstellungen: [] },
     })
     const { gesendet } = sammleAenderungen(state)
     expect(nachErfolg(state, gesendet).spiele).toEqual([])
@@ -181,7 +186,7 @@ describe('nachErfolg', () => {
   it('behält Einträge, die sich während der Übertragung geändert haben', () => {
     const state = zustand({
       spiele: [spiel('a', 1000)],
-      ausstehend: { spiele: ['a'], ranks: [], namen: [], einstellungen: [] },
+      ausstehend: { spiele: ['a'], ranks: [], kategorien: [], namen: [], einstellungen: [] },
     })
     const { gesendet } = sammleAenderungen(state)
 

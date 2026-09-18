@@ -50,6 +50,15 @@ CREATE TABLE IF NOT EXISTS ranks (
 );
 CREATE INDEX IF NOT EXISTS idx_ranks_folge ON ranks(folge);
 
+CREATE TABLE IF NOT EXISTS kategorien (
+  id            TEXT PRIMARY KEY,
+  geaendert_am  INTEGER NOT NULL,
+  folge         INTEGER NOT NULL DEFAULT 0,
+  geloescht     INTEGER NOT NULL DEFAULT 0,
+  daten         TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_kategorien_folge ON kategorien(folge);
+
 CREATE TABLE IF NOT EXISTS namen (
   schluessel    TEXT PRIMARY KEY,
   anzeige       TEXT NOT NULL,

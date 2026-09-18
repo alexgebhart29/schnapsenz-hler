@@ -85,7 +85,7 @@ function pruefeNamen(wert: unknown): NamensEintrag[] | string {
 }
 
 /** Nur bekannte Einstellungen werden synchronisiert; das Theme bleibt lokal. */
-const ERLAUBTE_EINSTELLUNGEN = new Set(['startwert', 'startwertVierer'])
+const ERLAUBTE_EINSTELLUNGEN = new Set(['startwert', 'startwertVierer', 'bettlerAktiv'])
 
 function pruefeEinstellungen(wert: unknown): EinstellungsEintrag[] | string {
   if (wert === undefined) return []
@@ -117,12 +117,22 @@ export function pruefeSyncAnfrage(roh: unknown): Ergebnis {
   const ranks = pruefeEintraege(rohAenderungen.ranks, 'ranks')
   if (typeof ranks === 'string') return { fehler: ranks }
 
+  const kategorien = pruefeEintraege(rohAenderungen.kategorien, 'kategorien')
+  if (typeof kategorien === 'string') return { fehler: kategorien }
+
   const namen = pruefeNamen(rohAenderungen.namen)
   if (typeof namen === 'string') return { fehler: namen }
 
   const einstellungen = pruefeEinstellungen(rohAenderungen.einstellungen)
   if (typeof einstellungen === 'string') return { fehler: einstellungen }
 
-  const aenderungen: SyncPaket = { ...LEERES_PAKET(), spiele, ranks, namen, einstellungen }
+  const aenderungen: SyncPaket = {
+    ...LEERES_PAKET(),
+    spiele,
+    ranks,
+    kategorien,
+    namen,
+    einstellungen,
+  }
   return { anfrage: { seit, aenderungen } }
 }

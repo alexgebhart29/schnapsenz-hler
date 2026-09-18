@@ -23,6 +23,7 @@ export type EinstellungsEintrag = {
 export type SyncPaket = {
   spiele: SyncEintrag[]
   ranks: SyncEintrag[]
+  kategorien: SyncEintrag[]
   namen: NamensEintrag[]
   einstellungen: EinstellungsEintrag[]
 }
@@ -44,6 +45,7 @@ export type SyncAntwort = {
 export const LEERES_PAKET = (): SyncPaket => ({
   spiele: [],
   ranks: [],
+  kategorien: [],
   namen: [],
   einstellungen: [],
 })

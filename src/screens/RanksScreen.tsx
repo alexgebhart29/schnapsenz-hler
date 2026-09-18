@@ -3,8 +3,16 @@ import { Screen } from '../components/Screen'
 import { navigiere } from '../navigation'
 import { absteigend, einstufungen, inhaber, ranksFuerModus, type Einstufung } from '../core/ranks'
 import { berechneStatistik } from '../core/stats'
+import { useSitzung } from '../core/session'
 import { actions } from '../core/store'
 import type { AppState, Modus, Rank, Spiel } from '../core/types'
+
+/** Auf einem reinen Gerät (kein Server) gibt es keine Rollen – dort darf jeder verwalten.
+ *  Sobald ein Konto besteht, dürfen nur Admins die Ranglisten-Stufen bearbeiten. */
+function useKannRanglisteVerwalten(): boolean {
+  const sitzung = useSitzung()
+  return sitzung.status !== 'angemeldet' || sitzung.benutzer?.istAdmin === true
+}
 
 type Props = { state: AppState }
 
@@ -47,6 +55,7 @@ export function ModusWahl({
 
 export function RanksScreen({ state }: Props) {
   const [modus, setModus] = useState<Modus>('zweier')
+  const kannVerwalten = useKannRanglisteVerwalten()
 
   const punkte = useMemo(() => parteiPunkte(state.spiele, modus), [state.spiele, modus])
   const stufenListe = useMemo(() => ranksFuerModus(state.ranks, modus), [state.ranks, modus])
@@ -95,8 +104,12 @@ export function RanksScreen({ state }: Props) {
               Noch keine Stufen für {modus === 'zweier' ? 'Zweier' : 'Vierer'} angelegt. Beispiel:
               „Gold 1“ ab 5 Punkten – wer 5 Bummerl gewonnen hat, trägt dann Gold 1.
             </p>
-            <hr className="trenner" />
-            <RankFormular modus={modus} />
+            {kannVerwalten && (
+              <>
+                <hr className="trenner" />
+                <RankFormular modus={modus} />
+              </>
+            )}
           </div>
         ) : (
           <>
@@ -105,17 +118,19 @@ export function RanksScreen({ state }: Props) {
                 <StufenZeile key={rank.id} rank={rank} liste={liste} />
               ))}
             </div>
-            <div className="karte">
-              <h3 className="karte__titel">Stufe hinzufügen</h3>
-              <RankFormular modus={modus} />
-              <button
-                type="button"
-                className="btn btn--geist btn--klein"
-                onClick={() => navigiere({ name: 'einstellungen' })}
-              >
-                Stufen bearbeiten
-              </button>
-            </div>
+            {kannVerwalten && (
+              <div className="karte">
+                <h3 className="karte__titel">Stufe hinzufügen</h3>
+                <RankFormular modus={modus} />
+                <button
+                  type="button"
+                  className="btn btn--geist btn--klein"
+                  onClick={() => navigiere({ name: 'einstellungen' })}
+                >
+                  Stufen bearbeiten
+                </button>
+              </div>
+            )}
           </>
         )}
       </section>

@@ -9,7 +9,16 @@ import {
   namensSchluessel,
   speichereState,
 } from './storage'
-import type { AppState, Ausstehend, Modus, NamensEintrag, Rank, Settings, Spiel } from './types'
+import type {
+  AppState,
+  Ausstehend,
+  Kategorie,
+  Modus,
+  NamensEintrag,
+  Rank,
+  Settings,
+  Spiel,
+} from './types'
 
 let state: AppState = ladeState()
 const listeners = new Set<() => void>()
@@ -93,6 +102,11 @@ export const actions = {
         einstellungenGeaendertAm = { ...einstellungenGeaendertAm, startwertVierer: jetzt }
         ausstehend = markiere(ausstehend, 'einstellungen', ['startwertVierer'])
       }
+    }
+
+    if (patch.bettlerAktiv !== undefined && patch.bettlerAktiv !== state.settings.bettlerAktiv) {
+      einstellungenGeaendertAm = { ...einstellungenGeaendertAm, bettlerAktiv: jetzt }
+      ausstehend = markiere(ausstehend, 'einstellungen', ['bettlerAktiv'])
     }
 
     setState({ ...state, settings, einstellungenGeaendertAm, ausstehend })
@@ -273,6 +287,52 @@ export const actions = {
     })
   },
 
+  kategorieHinzufuegen(name: string, punkte: number): void {
+    const kategorie: Kategorie = {
+      id: createId('kategorie'),
+      name: name.trim(),
+      punkte: Math.round(punkte),
+      geaendertAm: Date.now(),
+    }
+    setState({
+      ...state,
+      kategorien: [...state.kategorien, kategorie],
+      ausstehend: markiere(state.ausstehend, 'kategorien', [kategorie.id]),
+    })
+  },
+
+  kategorieAendern(id: string, patch: Partial<Omit<Kategorie, 'id' | 'geaendertAm'>>): void {
+    if (!state.kategorien.some((kategorie) => kategorie.id === id)) return
+    const jetzt = Date.now()
+
+    setState({
+      ...state,
+      kategorien: state.kategorien.map((kategorie) =>
+        kategorie.id === id
+          ? {
+              ...kategorie,
+              name: patch.name !== undefined ? patch.name.trim() : kategorie.name,
+              punkte: patch.punkte !== undefined ? Math.round(patch.punkte) : kategorie.punkte,
+              geaendertAm: jetzt,
+            }
+          : kategorie,
+      ),
+      ausstehend: markiere(state.ausstehend, 'kategorien', [id]),
+    })
+  },
+
+  kategorieLoeschen(id: string): void {
+    if (!state.kategorien.some((kategorie) => kategorie.id === id)) return
+    const jetzt = Date.now()
+
+    setState({
+      ...state,
+      kategorien: state.kategorien.filter((kategorie) => kategorie.id !== id),
+      grabsteine: grabstein(state.grabsteine, 'kategorien', [id], jetzt),
+      ausstehend: markiere(state.ausstehend, 'kategorien', [id]),
+    })
+  },
+
   /**
    * Löscht alle Spieldaten. Die Löschung wird als Grabstein vermerkt und
    * erreicht damit beim nächsten Abgleich auch die anderen Geräte.
@@ -284,16 +344,29 @@ export const actions = {
     const namensIds = state.namen.map((eintrag) => namensSchluessel(eintrag.name))
 
     const frisch = initialState()
+    // Die mitgelieferten Standardkategorien kommen mit denselben IDs zurück –
+    // die zählen nicht als Löschung, sonst würden sie sich beim nächsten
+    // Abgleich selbst wieder löschen. Nur selbst angelegte Kategorien gelten
+    // als entfernt.
+    const kategorieIds = state.kategorien
+      .filter((kategorie) => !frisch.kategorien.some((eintrag) => eintrag.id === kategorie.id))
+      .map((kategorie) => kategorie.id)
+
     setState({
       ...frisch,
       grabsteine: {
         spiele: { ...state.grabsteine.spiele, ...Object.fromEntries(spielIds.map((id) => [id, jetzt])) },
         ranks: { ...state.grabsteine.ranks, ...Object.fromEntries(rankIds.map((id) => [id, jetzt])) },
+        kategorien: {
+          ...state.grabsteine.kategorien,
+          ...Object.fromEntries(kategorieIds.map((id) => [id, jetzt])),
+        },
         namen: { ...state.grabsteine.namen, ...Object.fromEntries(namensIds.map((id) => [id, jetzt])) },
       },
       ausstehend: {
         spiele: spielIds,
         ranks: rankIds,
+        kategorien: kategorieIds,
         namen: namensIds,
         einstellungen: [],
       },
@@ -309,6 +382,10 @@ export const actions = {
 
 export function sortierteRanks(ranks: Rank[]): Rank[] {
   return [...ranks].sort((a, b) => b.punkte - a.punkte || a.name.localeCompare(b.name, 'de'))
+}
+
+export function sortierteKategorien(kategorien: Kategorie[]): Kategorie[] {
+  return [...kategorien].sort((a, b) => a.punkte - b.punkte || a.name.localeCompare(b.name, 'de'))
 }
 
 /** Namen als einfache Liste, neueste zuerst. */

@@ -5,6 +5,7 @@ import { formatZeit } from '../format'
 import { navigiere } from '../navigation'
 import {
   ABZUG_OPTIONEN,
+  BETTLER_PUNKTE,
   bummerlAbschliessen,
   entschieden,
   kannAbziehen,
@@ -16,15 +17,23 @@ import {
   spielSieger,
   undo,
 } from '../core/schnapsen'
-import { actions } from '../core/store'
-import type { Spiel, SpielerIndex } from '../core/types'
+import { actions, sortierteKategorien } from '../core/store'
+import type { AppState, Spiel, SpielerIndex } from '../core/types'
 
-type Props = { spiel: Spiel }
+type Props = { spiel: Spiel; state: AppState }
 
 type OffenerDialog = 'spielBeenden' | null
 
-export function GameScreen({ spiel }: Props) {
+/** Punktekategorien fürs Vierer als Schaltflächen, inkl. „Bettler“ falls aktiviert. */
+function vierKategorien(state: AppState): { id: string; name: string; punkte: number }[] {
+  const kategorien = sortierteKategorien(state.kategorien)
+  if (!state.settings.bettlerAktiv) return kategorien
+  return [...kategorien, { id: 'bettler', name: 'Bettler', punkte: BETTLER_PUNKTE }]
+}
+
+export function GameScreen({ spiel, state }: Props) {
   const [dialog, setDialog] = useState<OffenerDialog>(null)
+  const kategorien = vierKategorien(state)
 
   const sieger = entschieden(spiel)
   const beendet = spiel.status === 'beendet'
@@ -93,6 +102,7 @@ export function GameScreen({ spiel }: Props) {
           index={index}
           aenderbar={aenderbar}
           hervorgehoben={sieger === index}
+          kategorien={kategorien}
           onAbziehen={abziehen}
         />
       ))}
@@ -182,12 +192,14 @@ function SpielerKarte({
   index,
   aenderbar,
   hervorgehoben,
+  kategorien,
   onAbziehen,
 }: {
   spiel: Spiel
   index: SpielerIndex
   aenderbar: boolean
   hervorgehoben: boolean
+  kategorien: { id: string; name: string; punkte: number }[]
   onAbziehen: (spieler: SpielerIndex, punkte: number) => void
 }) {
   const punkte = spiel.punkte[index]
@@ -231,11 +243,30 @@ function SpielerKarte({
       </div>
 
       {spiel.modus === 'vierer' && (
-        <FreieAbzugEingabe
-          aenderbar={aenderbar}
-          label={parteiName(spiel, index)}
-          onAbziehen={(punkte) => onAbziehen(index, punkte)}
-        />
+        <>
+          {kategorien.length > 0 && (
+            <div className="spieler__abzug">
+              {kategorien.map((kategorie) => (
+                <button
+                  type="button"
+                  key={kategorie.id}
+                  className="abzug-knopf"
+                  disabled={!aenderbar}
+                  onClick={() => onAbziehen(index, kategorie.punkte)}
+                  title={`${parteiName(spiel, index)} gewinnt die Partie: ${kategorie.name}`}
+                >
+                  <span className="abzug-knopf__zahl">−{kategorie.punkte}</span>
+                  <span className="abzug-knopf__text">{kategorie.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <FreieAbzugEingabe
+            aenderbar={aenderbar}
+            label={parteiName(spiel, index)}
+            onAbziehen={(punkte) => onAbziehen(index, punkte)}
+          />
+        </>
       )}
     </section>
   )

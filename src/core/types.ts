@@ -10,6 +10,8 @@ export type Settings = {
   startwertVierer: number
   /** Bleibt geräteabhängig und wird nicht synchronisiert. */
   theme: Theme
+  /** Schaltet die Kategorie „Bettler“ im Vierer frei. Wird synchronisiert. */
+  bettlerAktiv: boolean
 }
 
 /** Zweier-Schnapsen (1 gegen 1) oder Vierer-Schnapsen (2 gegen 2 in festen Teams). */
@@ -21,6 +23,18 @@ export type Rank = {
   punkte: number
   /** Jede Spielform hat ihre eigene Rangliste. */
   modus: Modus
+  /** Zeitpunkt der letzten Änderung – entscheidet Konflikte beim Abgleich. */
+  geaendertAm: number
+}
+
+/**
+ * Punktekategorie für das Vierer-Schnapsen (z. B. „Gang“, „Schnapser“). Frei
+ * erweiterbar über die Einstellungen – jeder Benutzer darf welche anlegen.
+ */
+export type Kategorie = {
+  id: string
+  name: string
+  punkte: number
   /** Zeitpunkt der letzten Änderung – entscheidet Konflikte beim Abgleich. */
   geaendertAm: number
 }
@@ -79,6 +93,7 @@ export type NamensEintrag = {
 export type Grabsteine = {
   spiele: Record<string, number>
   ranks: Record<string, number>
+  kategorien: Record<string, number>
   /** Schlüssel ist der Name in Kleinschreibung. */
   namen: Record<string, number>
 }
@@ -87,6 +102,7 @@ export type Grabsteine = {
 export type Ausstehend = {
   spiele: string[]
   ranks: string[]
+  kategorien: string[]
   /** Schlüssel ist der Name in Kleinschreibung. */
   namen: string[]
   einstellungen: string[]
@@ -107,6 +123,8 @@ export type AppState = {
   /** Zuletzt verwendete Spielernamen, neueste zuerst. */
   namen: NamensEintrag[]
   ranks: Rank[]
+  /** Nur im Vierer verwendete Punktekategorien. */
+  kategorien: Kategorie[]
   /** Alle Spiele, neueste zuerst. */
   spiele: Spiel[]
   /** Das Spiel, das beim Öffnen fortgesetzt werden kann. Bleibt lokal. */
@@ -140,6 +158,7 @@ export type SyncEinstellung = {
 export type SyncPaket = {
   spiele: SyncEintrag[]
   ranks: SyncEintrag[]
+  kategorien: SyncEintrag[]
   namen: SyncNamensEintrag[]
   einstellungen: SyncEinstellung[]
 }

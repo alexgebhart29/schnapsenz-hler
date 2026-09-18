@@ -1,8 +1,9 @@
 import { normalizeStartwert } from './schnapsen'
-import { MAX_SPIELE, namensSchluessel, parseRank, parseSpiel } from './storage'
+import { MAX_SPIELE, namensSchluessel, parseKategorie, parseRank, parseSpiel } from './storage'
 import type {
   AppState,
   Ausstehend,
+  Kategorie,
   NamensEintrag,
   Rank,
   Settings,
@@ -18,16 +19,23 @@ export const GRABSTEIN_LEBENSDAUER_MS = 90 * 24 * 60 * 60 * 1000
 const SYNC_EINSTELLUNGEN = {
   startwert: {
     lesen: (settings: Settings) => settings.startwert,
-    schreiben: (settings: Settings, wert: number): Settings => ({
+    schreiben: (settings: Settings, wert: unknown): Settings => ({
       ...settings,
-      startwert: normalizeStartwert(wert),
+      startwert: normalizeStartwert(typeof wert === 'number' ? wert : NaN),
     }),
   },
   startwertVierer: {
     lesen: (settings: Settings) => settings.startwertVierer,
-    schreiben: (settings: Settings, wert: number): Settings => ({
+    schreiben: (settings: Settings, wert: unknown): Settings => ({
       ...settings,
-      startwertVierer: normalizeStartwert(wert),
+      startwertVierer: normalizeStartwert(typeof wert === 'number' ? wert : NaN),
+    }),
+  },
+  bettlerAktiv: {
+    lesen: (settings: Settings) => settings.bettlerAktiv,
+    schreiben: (settings: Settings, wert: unknown): Settings => ({
+      ...settings,
+      bettlerAktiv: wert === true,
     }),
   },
 } as const
@@ -38,16 +46,24 @@ type SyncEinstellungsSchluessel = keyof typeof SYNC_EINSTELLUNGEN
 export type Gesendet = {
   spiele: Record<string, number>
   ranks: Record<string, number>
+  kategorien: Record<string, number>
   namen: Record<string, number>
   einstellungen: Record<string, number>
 }
 
-const leeresPaket = (): SyncPaket => ({ spiele: [], ranks: [], namen: [], einstellungen: [] })
+const leeresPaket = (): SyncPaket => ({
+  spiele: [],
+  ranks: [],
+  kategorien: [],
+  namen: [],
+  einstellungen: [],
+})
 
 export function istPaketLeer(paket: SyncPaket): boolean {
   return (
     paket.spiele.length === 0 &&
     paket.ranks.length === 0 &&
+    paket.kategorien.length === 0 &&
     paket.namen.length === 0 &&
     paket.einstellungen.length === 0
   )
@@ -59,7 +75,7 @@ export function istPaketLeer(paket: SyncPaket): boolean {
  */
 export function sammleAenderungen(state: AppState): { paket: SyncPaket; gesendet: Gesendet } {
   const paket = leeresPaket()
-  const gesendet: Gesendet = { spiele: {}, ranks: {}, namen: {}, einstellungen: {} }
+  const gesendet: Gesendet = { spiele: {}, ranks: {}, kategorien: {}, namen: {}, einstellungen: {} }
 
   for (const id of state.ausstehend.spiele) {
     const spiel = state.spiele.find((eintrag) => eintrag.id === id)
@@ -86,6 +102,20 @@ export function sammleAenderungen(state: AppState): { paket: SyncPaket; gesendet
     if (geloeschtAm) {
       paket.ranks.push({ id, geaendertAm: geloeschtAm, geloescht: true })
       gesendet.ranks[id] = geloeschtAm
+    }
+  }
+
+  for (const id of state.ausstehend.kategorien) {
+    const kategorie = state.kategorien.find((eintrag) => eintrag.id === id)
+    if (kategorie) {
+      paket.kategorien.push({ id, geaendertAm: kategorie.geaendertAm, daten: kategorie })
+      gesendet.kategorien[id] = kategorie.geaendertAm
+      continue
+    }
+    const geloeschtAm = state.grabsteine.kategorien[id]
+    if (geloeschtAm) {
+      paket.kategorien.push({ id, geaendertAm: geloeschtAm, geloescht: true })
+      gesendet.kategorien[id] = geloeschtAm
     }
   }
 
@@ -118,10 +148,11 @@ export function sammleAenderungen(state: AppState): { paket: SyncPaket; gesendet
 /** Aktueller Zeitstempel eines Eintrags – auch wenn er gelöscht wurde. */
 function standVon(
   state: AppState,
-  art: 'spiele' | 'ranks',
+  art: 'spiele' | 'ranks' | 'kategorien',
   id: string,
 ): number {
-  const liste: { id: string; geaendertAm: number }[] = art === 'spiele' ? state.spiele : state.ranks
+  const liste: { id: string; geaendertAm: number }[] =
+    art === 'spiele' ? state.spiele : art === 'ranks' ? state.ranks : state.kategorien
   const eintrag = liste.find((wert) => wert.id === id)
   if (eintrag) return eintrag.geaendertAm
   return state.grabsteine[art][id] ?? -1
@@ -141,6 +172,7 @@ export function nachErfolg(state: AppState, gesendet: Gesendet): Ausstehend {
   return {
     spiele: behalte('spiele', (id) => standVon(state, 'spiele', id)),
     ranks: behalte('ranks', (id) => standVon(state, 'ranks', id)),
+    kategorien: behalte('kategorien', (id) => standVon(state, 'kategorien', id)),
     namen: behalte('namen', (schluessel) => {
       const eintrag = state.namen.find((name) => namensSchluessel(name.name) === schluessel)
       return eintrag ? eintrag.geaendertAm : (state.grabsteine.namen[schluessel] ?? -1)
@@ -181,18 +213,20 @@ export function wendeAn(
 ): AppState {
   let spiele = state.spiele
   let ranks = state.ranks
+  let kategorien = state.kategorien
   let namen = state.namen
   let settings = state.settings
   let einstellungenGeaendertAm = state.einstellungenGeaendertAm
   const grabsteine = {
     spiele: { ...state.grabsteine.spiele },
     ranks: { ...state.grabsteine.ranks },
+    kategorien: { ...state.grabsteine.kategorien },
     namen: { ...state.grabsteine.namen },
   }
 
   const verarbeite = <T extends { id: string; geaendertAm: number }>(
     liste: T[],
-    art: 'spiele' | 'ranks',
+    art: 'spiele' | 'ranks' | 'kategorien',
     eintraege: SyncEintrag[],
     parse: (daten: unknown, id: string) => T | null,
   ): T[] => {
@@ -221,6 +255,9 @@ export function wendeAn(
 
   spiele = verarbeite<Spiel>(spiele, 'spiele', paket.spiele, (daten, id) => parseSpiel(daten, id))
   ranks = verarbeite<Rank>(ranks, 'ranks', paket.ranks, (daten, id) => parseRank(daten, id))
+  kategorien = verarbeite<Kategorie>(kategorien, 'kategorien', paket.kategorien, (daten, id) =>
+    parseKategorie(daten, id),
+  )
 
   for (const eintrag of paket.namen) {
     const schluessel = namensSchluessel(eintrag.name)
@@ -247,7 +284,7 @@ export function wendeAn(
     if (!definition) continue
     const lokalerStand = einstellungenGeaendertAm[eintrag.schluessel] ?? -1
     if (eintrag.geaendertAm <= lokalerStand) continue
-    if (typeof eintrag.wert !== 'number') continue
+    if (eintrag.wert === undefined) continue
 
     settings = definition.schreiben(settings, eintrag.wert)
     einstellungenGeaendertAm = { ...einstellungenGeaendertAm, [eintrag.schluessel]: eintrag.geaendertAm }
@@ -265,6 +302,7 @@ export function wendeAn(
     ...state,
     spiele,
     ranks,
+    kategorien,
     namen,
     settings,
     einstellungenGeaendertAm,
@@ -274,6 +312,7 @@ export function wendeAn(
     grabsteine: {
       spiele: raeumeGrabsteine(grabsteine.spiele, jetzt, state.ausstehend.spiele),
       ranks: raeumeGrabsteine(grabsteine.ranks, jetzt, state.ausstehend.ranks),
+      kategorien: raeumeGrabsteine(grabsteine.kategorien, jetzt, state.ausstehend.kategorien),
       namen: raeumeGrabsteine(grabsteine.namen, jetzt, state.ausstehend.namen),
     },
     sync: { stand, zuletztAm: jetzt },

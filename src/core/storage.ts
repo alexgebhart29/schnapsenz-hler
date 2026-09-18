@@ -1,9 +1,16 @@
-import { DEFAULT_STARTWERT, DEFAULT_STARTWERT_VIERER, MAX_UNDO, normalizeStartwert } from './schnapsen'
+import {
+  DEFAULT_STARTWERT,
+  DEFAULT_STARTWERT_VIERER,
+  MAX_UNDO,
+  normalizeStartwert,
+  standardKategorien,
+} from './schnapsen'
 import type {
   AppState,
   Ausstehend,
   BummerlEintrag,
   Grabsteine,
+  Kategorie,
   Modus,
   NamensEintrag,
   Rank,
@@ -24,20 +31,26 @@ export const MAX_SPIELE = 200
 export const namensSchluessel = (name: string): string => name.trim().toLowerCase()
 
 export function leereGrabsteine(): Grabsteine {
-  return { spiele: {}, ranks: {}, namen: {} }
+  return { spiele: {}, ranks: {}, kategorien: {}, namen: {} }
 }
 
 export function leeresAusstehend(): Ausstehend {
-  return { spiele: [], ranks: [], namen: [], einstellungen: [] }
+  return { spiele: [], ranks: [], kategorien: [], namen: [], einstellungen: [] }
 }
 
 export function initialState(): AppState {
   return {
     version: 2,
-    settings: { startwert: DEFAULT_STARTWERT, startwertVierer: DEFAULT_STARTWERT_VIERER, theme: 'system' },
+    settings: {
+      startwert: DEFAULT_STARTWERT,
+      startwertVierer: DEFAULT_STARTWERT_VIERER,
+      theme: 'system',
+      bettlerAktiv: false,
+    },
     einstellungenGeaendertAm: {},
     namen: [],
     ranks: [],
+    kategorien: standardKategorien(1),
     spiele: [],
     aktivesSpielId: null,
     grabsteine: leereGrabsteine(),
@@ -69,6 +82,7 @@ function parseSettings(wert: unknown): Settings {
     startwertVierer: normalizeStartwert(zahl(roh.startwertVierer, DEFAULT_STARTWERT_VIERER)),
     theme:
       theme === 'hell' || theme === 'dunkel' || theme === 'system' ? (theme as Theme) : 'system',
+    bettlerAktiv: roh.bettlerAktiv === true,
   }
 }
 
@@ -91,6 +105,24 @@ function parseRanks(wert: unknown): Rank[] {
   return wert
     .map((roh, index) => parseRank(roh, `rank-${index}`))
     .filter((rank): rank is Rank => rank !== null)
+}
+
+/** Einzelne Kategorie – auch für Daten vom Server verwendet. */
+export function parseKategorie(wert: unknown, fallbackId = 'kategorie'): Kategorie | null {
+  if (!istObjekt(wert)) return null
+  return {
+    id: text(wert.id) || fallbackId,
+    name: text(wert.name),
+    punkte: Math.round(zahl(wert.punkte, 0)),
+    geaendertAm: zahl(wert.geaendertAm, 0),
+  }
+}
+
+function parseKategorien(wert: unknown): Kategorie[] {
+  if (!Array.isArray(wert)) return []
+  return wert
+    .map((roh, index) => parseKategorie(roh, `kategorie-${index}`))
+    .filter((kategorie): kategorie is Kategorie => kategorie !== null)
 }
 
 function parseBummerlLog(wert: unknown): BummerlEintrag[] {
@@ -199,22 +231,32 @@ export function parseState(roh: unknown): AppState {
   const ausstehendRoh = istObjekt(roh.ausstehend) ? roh.ausstehend : {}
   const syncRoh = istObjekt(roh.sync) ? roh.sync : {}
 
+  // Bestandsdaten kannten „kategorien“ noch nicht: einmalig mit den
+  // mitgelieferten Standardkategorien befüllen und zum Abgleich vormerken.
+  const kategorienNeu = roh.kategorien === undefined
+  const kategorien = kategorienNeu ? standardKategorien(1) : parseKategorien(roh.kategorien)
+
   return {
     version: 2,
     settings: parseSettings(roh.settings),
     einstellungenGeaendertAm: parseZeitstempelKarte(roh.einstellungenGeaendertAm),
     namen: parseNamen(roh.namen),
     ranks: parseRanks(roh.ranks),
+    kategorien,
     spiele,
     aktivesSpielId: spiele.some((s) => s.id === aktivesSpielId) ? aktivesSpielId : null,
     grabsteine: {
       spiele: parseZeitstempelKarte(grabsteineRoh.spiele),
       ranks: parseZeitstempelKarte(grabsteineRoh.ranks),
+      kategorien: parseZeitstempelKarte(grabsteineRoh.kategorien),
       namen: parseZeitstempelKarte(grabsteineRoh.namen),
     },
     ausstehend: {
       spiele: parseIdListe(ausstehendRoh.spiele),
       ranks: parseIdListe(ausstehendRoh.ranks),
+      kategorien: kategorienNeu
+        ? kategorien.map((eintrag) => eintrag.id)
+        : parseIdListe(ausstehendRoh.kategorien),
       namen: parseIdListe(ausstehendRoh.namen),
       einstellungen: parseIdListe(ausstehendRoh.einstellungen),
     },
@@ -253,6 +295,7 @@ function migriere(state: AppState, roh: Record<string, unknown>): AppState {
     ausstehend: {
       spiele: spiele.map((s) => s.id),
       ranks: ranks.map((r) => r.id),
+      kategorien: [],
       namen: namen.map((n) => namensSchluessel(n.name)),
       einstellungen: ['startwert'],
     },

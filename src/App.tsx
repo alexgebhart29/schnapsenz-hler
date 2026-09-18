@@ -67,7 +67,7 @@ export function App() {
   return (
     <div className="app">
       {route.name === 'spiel' && spiel ? (
-        <GameScreen spiel={spiel} />
+        <GameScreen spiel={spiel} state={state} />
       ) : route.name === 'einstellungen' ? (
         <SettingsScreen state={state} />
       ) : route.name === 'ranks' ? (

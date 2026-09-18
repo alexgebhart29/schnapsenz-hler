@@ -4,9 +4,9 @@ import { Screen } from '../components/Screen'
 import { navigiere } from '../navigation'
 import { api } from '../core/api'
 import { abmelden, fuehreSyncAus, useSitzung } from '../core/session'
-import { actions } from '../core/store'
+import { actions, sortierteKategorien } from '../core/store'
 import { MAX_STARTWERT, MIN_STARTWERT } from '../core/schnapsen'
-import type { AppState, Theme } from '../core/types'
+import type { AppState, Kategorie, Theme } from '../core/types'
 import { Stepper } from './StartScreen'
 import { RankVerwaltung } from './RanksScreen'
 
@@ -22,6 +22,10 @@ const THEMES: { wert: Theme; label: string }[] = [
 
 export function SettingsScreen({ state }: Props) {
   const [bestaetigung, setBestaetigung] = useState<Bestaetigung>(null)
+  const sitzung = useSitzung()
+  // Auf einem reinen Gerät (kein Server) gibt es keine Rollen – dort darf jeder verwalten.
+  // Sobald ein Konto besteht, dürfen nur Admins Ranglisten, Namen und Daten verwalten.
+  const kannVerwalten = sitzung.status !== 'angemeldet' || sitzung.benutzer?.istAdmin === true
 
   return (
     <Screen titel="Einstellungen">
@@ -73,56 +77,88 @@ export function SettingsScreen({ state }: Props) {
         </div>
       </section>
 
-      <RankVerwaltung ranks={state.ranks} />
+      <section className="karte">
+        <h2 className="karte__titel">Vierer-Schnapsen</h2>
+        <div className="reihe reihe--verteilt">
+          <div className="wachsen">
+            <div style={{ fontWeight: 600 }}>Kategorie „Bettler“</div>
+            <div className="hinweis">
+              Schaltet „Bettler“ als zusätzliche Punktekategorie im Vierer frei.
+            </div>
+          </div>
+          <button
+            type="button"
+            className="segmente__knopf"
+            aria-pressed={state.settings.bettlerAktiv}
+            onClick={() => actions.setSettings({ bettlerAktiv: !state.settings.bettlerAktiv })}
+          >
+            {state.settings.bettlerAktiv ? 'Aktiv' : 'Inaktiv'}
+          </button>
+        </div>
+        <hr className="trenner" />
+        <KategorieVerwaltung kategorien={state.kategorien} />
+      </section>
+
+      {kannVerwalten && <RankVerwaltung ranks={state.ranks} />}
 
       <KontoBereich />
 
-      <section className="karte">
-        <h2 className="karte__titel">Gespeicherte Spielernamen</h2>
-        {state.namen.length === 0 ? (
-          <p className="hinweis" style={{ margin: 0 }}>
-            Noch keine Namen gespeichert. Namen werden beim Spielstart automatisch gemerkt.
-          </p>
-        ) : (
-          <div className="chips">
-            {state.namen.map((eintrag) => (
-              <button
-                type="button"
-                key={eintrag.name}
-                className="chip"
-                onClick={() => actions.nameEntfernen(eintrag.name)}
-                title={`${eintrag.name} aus den Vorschlägen entfernen`}
-              >
-                {eintrag.name} ✕
-              </button>
-            ))}
-          </div>
-        )}
-        {state.namen.length > 0 && (
-          <button
-            type="button"
-            className="btn btn--geist btn--klein"
-            onClick={() => setBestaetigung('namen')}
-          >
-            Alle Namen löschen
-          </button>
-        )}
-      </section>
+      {kannVerwalten && (
+        <section className="karte">
+          <h2 className="karte__titel">Gespeicherte Spielernamen</h2>
+          {state.namen.length === 0 ? (
+            <p className="hinweis" style={{ margin: 0 }}>
+              Noch keine Namen gespeichert. Namen werden beim Spielstart automatisch gemerkt.
+            </p>
+          ) : (
+            <div className="chips">
+              {state.namen.map((eintrag) => (
+                <button
+                  type="button"
+                  key={eintrag.name}
+                  className="chip"
+                  onClick={() => actions.nameEntfernen(eintrag.name)}
+                  title={`${eintrag.name} aus den Vorschlägen entfernen`}
+                >
+                  {eintrag.name} ✕
+                </button>
+              ))}
+            </div>
+          )}
+          {state.namen.length > 0 && (
+            <button
+              type="button"
+              className="btn btn--geist btn--klein"
+              onClick={() => setBestaetigung('namen')}
+            >
+              Alle Namen löschen
+            </button>
+          )}
+        </section>
+      )}
 
       <section className="karte">
         <h2 className="karte__titel">Daten</h2>
         <button type="button" className="btn" onClick={() => navigiere({ name: 'historie' })}>
           Spielverlauf ansehen ({state.spiele.length})
         </button>
-        <button type="button" className="btn btn--gefahr" onClick={() => setBestaetigung('historie')}>
-          Spielverlauf löschen
-        </button>
-        <button type="button" className="btn btn--gefahr" onClick={() => setBestaetigung('alles')}>
-          Alle Daten zurücksetzen
-        </button>
+        {kannVerwalten && (
+          <>
+            <button
+              type="button"
+              className="btn btn--gefahr"
+              onClick={() => setBestaetigung('historie')}
+            >
+              Spielverlauf löschen
+            </button>
+            <button type="button" className="btn btn--gefahr" onClick={() => setBestaetigung('alles')}>
+              Alle Daten zurücksetzen
+            </button>
+          </>
+        )}
         <p className="hinweis" style={{ margin: 0 }}>
           Alle Daten liegen ausschließlich lokal auf diesem Gerät – kein Konto, keine Cloud. Zum
-          Installieren am iPhone: in Safari teilen → „Zum Home-Bildschirm“.
+          Installieren am iPhone: in Safari teilen → „Zum Home-Bildschirm".
         </p>
       </section>
 
@@ -282,5 +318,160 @@ function KontoBereich() {
         Abmelden
       </button>
     </section>
+  )
+}
+
+/**
+ * Punktekategorien für das Vierer-Schnapsen (Gang, Schnapser, …). Jeder
+ * Benutzer darf hier eigene Kategorien anlegen, umbenennen oder löschen.
+ */
+function KategorieVerwaltung({ kategorien }: { kategorien: Kategorie[] }) {
+  const sortiert = sortierteKategorien(kategorien)
+
+  return (
+    <div className="stapel">
+      <p className="hinweis" style={{ margin: 0 }}>
+        Punktekategorien fürs Vierer, z. B. „Gang“ für 9 Punkte. Beim Punkte-Eintragen im Spiel
+        stehen sie als Knöpfe zur Auswahl.
+      </p>
+
+      {sortiert.length > 0 && (
+        <div className="stapel stapel--eng">
+          {sortiert.map((kategorie) => (
+            <KategorieZeile key={kategorie.id} kategorie={kategorie} />
+          ))}
+        </div>
+      )}
+
+      <KategorieFormular />
+    </div>
+  )
+}
+
+function KategorieFormular() {
+  const [name, setName] = useState('')
+  const [punkte, setPunkte] = useState('')
+
+  const hinzufuegen = () => {
+    const sauber = name.trim()
+    if (!sauber) return
+    actions.kategorieHinzufuegen(sauber, Number(punkte) || 0)
+    setName('')
+    setPunkte('')
+  }
+
+  return (
+    <div className="stapel">
+      <div className="reihe">
+        <input
+          className="eingabe wachsen"
+          placeholder="Kategorie, z. B. Bettler"
+          value={name}
+          autoCapitalize="words"
+          onChange={(event) => setName(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') hinzufuegen()
+          }}
+          aria-label="Name der Kategorie"
+        />
+        <input
+          className="eingabe eingabe--zahl"
+          type="number"
+          inputMode="numeric"
+          placeholder="Punkte"
+          value={punkte}
+          onChange={(event) => setPunkte(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') hinzufuegen()
+          }}
+          aria-label="Punktewert der Kategorie"
+        />
+      </div>
+      <button
+        type="button"
+        className="btn btn--primaer btn--block"
+        onClick={hinzufuegen}
+        disabled={!name.trim()}
+      >
+        Kategorie hinzufügen
+      </button>
+    </div>
+  )
+}
+
+function KategorieZeile({ kategorie }: { kategorie: Kategorie }) {
+  const [bearbeiten, setBearbeiten] = useState(false)
+  const [name, setName] = useState(kategorie.name)
+  const [punkte, setPunkte] = useState(String(kategorie.punkte))
+
+  const speichern = () => {
+    const sauber = name.trim()
+    if (!sauber) {
+      setName(kategorie.name)
+      setBearbeiten(false)
+      return
+    }
+    actions.kategorieAendern(kategorie.id, { name: sauber, punkte: Number(punkte) || 0 })
+    setBearbeiten(false)
+  }
+
+  if (!bearbeiten) {
+    return (
+      <div className="reihe">
+        <span className="wachsen eintrag__titel">{kategorie.name || 'Ohne Namen'}</span>
+        <span className="eintrag__wert">{kategorie.punkte}</span>
+        <button
+          type="button"
+          className="btn btn--geist btn--klein"
+          onClick={() => {
+            setName(kategorie.name)
+            setPunkte(String(kategorie.punkte))
+            setBearbeiten(true)
+          }}
+          aria-label={`${kategorie.name} bearbeiten`}
+        >
+          ✎
+        </button>
+        <button
+          type="button"
+          className="btn btn--geist btn--klein"
+          onClick={() => actions.kategorieLoeschen(kategorie.id)}
+          aria-label={`${kategorie.name} löschen`}
+        >
+          🗑
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="reihe">
+      <input
+        className="eingabe wachsen"
+        value={name}
+        autoFocus
+        onChange={(event) => setName(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') speichern()
+          if (event.key === 'Escape') setBearbeiten(false)
+        }}
+        aria-label="Name der Kategorie"
+      />
+      <input
+        className="eingabe eingabe--zahl"
+        type="number"
+        inputMode="numeric"
+        value={punkte}
+        onChange={(event) => setPunkte(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') speichern()
+          if (event.key === 'Escape') setBearbeiten(false)
+        }}
+        aria-label="Punktewert der Kategorie"
+      />
+      <button type="button" className="btn btn--primaer btn--klein" onClick={speichern}>
+        OK
+      </button>
+    </div>
   )
 }

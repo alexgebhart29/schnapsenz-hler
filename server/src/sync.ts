@@ -31,6 +31,7 @@ function hatAenderungen(paket: SyncPaket): boolean {
   return (
     paket.spiele.length > 0 ||
     paket.ranks.length > 0 ||
+    paket.kategorien.length > 0 ||
     paket.namen.length > 0 ||
     paket.einstellungen.length > 0
   )
@@ -42,7 +43,7 @@ function hatAenderungen(paket: SyncPaket): boolean {
  */
 function schreibeEintrag(
   db: DatabaseSync,
-  tabelle: 'spiele' | 'ranks',
+  tabelle: 'spiele' | 'ranks' | 'kategorien',
   eintrag: SyncEintrag,
   geaendertAm: number,
   folge: number,
@@ -116,7 +117,7 @@ function schreibeEinstellung(
 function leseAenderungen(db: DatabaseSync, seit: number): SyncPaket {
   const paket = LEERES_PAKET()
 
-  for (const tabelle of ['spiele', 'ranks'] as const) {
+  for (const tabelle of ['spiele', 'ranks', 'kategorien'] as const) {
     const zeilen = db
       .prepare(`SELECT id, geaendert_am, geloescht, daten FROM ${tabelle} WHERE folge > ?`)
       .all(seit) as { id: string; geaendert_am: number; geloescht: number; daten: string }[]
@@ -182,6 +183,9 @@ export function synchronisiere(
       }
       for (const eintrag of eingehend.ranks) {
         schreibeEintrag(datenbank, 'ranks', eintrag, zeit(eintrag.geaendertAm), folge)
+      }
+      for (const eintrag of eingehend.kategorien) {
+        schreibeEintrag(datenbank, 'kategorien', eintrag, zeit(eintrag.geaendertAm), folge)
       }
       for (const eintrag of eingehend.namen) {
         schreibeNamen(datenbank, eintrag, zeit(eintrag.geaendertAm), folge)
