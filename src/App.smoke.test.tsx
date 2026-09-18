@@ -282,6 +282,25 @@ describe('App', () => {
     expect(abzugKnopf('Bert', 1)).toHaveProperty('disabled', false)
   })
 
+  it('führt der Zurück-Pfeil zur logischen Eltern-Route statt zum Browser-Verlauf', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByLabelText('Spieler 1')
+
+    // Direkter Sprung mitten in die Hierarchie: Benutzer → eigentlich unter
+    // Einstellungen eingehängt, nicht unter dem Start-Screen.
+    window.location.hash = '#/benutzer'
+    await screen.findByRole('heading', { name: 'Benutzer' })
+
+    await user.click(screen.getByRole('button', { name: 'Zurück' }))
+    expect(await screen.findByRole('heading', { name: 'Einstellungen' })).toBeTruthy()
+
+    // Von dort geht es zurück zum Start – unabhängig davon, dass wir nie über
+    // den Start-Screen hierher navigiert sind.
+    await user.click(screen.getByRole('button', { name: 'Zurück' }))
+    expect(await screen.findByRole('button', { name: 'Spiel starten' })).toBeTruthy()
+  })
+
   it('übernimmt einen geänderten Startwert in neue Spiele', async () => {
     const user = userEvent.setup()
     render(<App />)

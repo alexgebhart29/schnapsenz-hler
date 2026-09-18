@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { zurueck } from '../navigation'
+import { elternRoute, navigiere, useRoute } from '../navigation'
 
 type Props = {
   titel: string
@@ -11,6 +11,8 @@ type Props = {
 }
 
 export function Screen({ titel, children, zurueckZeigen = true, aktion, breit }: Props) {
+  const route = useRoute()
+
   return (
     <div className={breit ? 'screen screen--breit' : 'screen'}>
       <header className="kopf">
@@ -18,7 +20,7 @@ export function Screen({ titel, children, zurueckZeigen = true, aktion, breit }:
           <button
             type="button"
             className="btn btn--geist btn--icon kopf__aktion"
-            onClick={zurueck}
+            onClick={() => navigiere(elternRoute(route))}
             aria-label="Zurück"
           >
             ‹

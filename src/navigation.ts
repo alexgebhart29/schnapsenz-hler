@@ -55,6 +55,24 @@ export function hashZuRoute(hash: string): Route {
   }
 }
 
+/**
+ * Feste Eltern-Route je Screen – unabhängig vom tatsächlichen Navigationsverlauf.
+ * So führt der Zurück-Pfeil immer an dieselbe, vorhersehbare Stelle, egal wie
+ * man auf den aktuellen Screen gekommen ist (anders als Browser-„Zurück").
+ */
+const ELTERN_ROUTE: Partial<Record<Route['name'], Route>> = {
+  spiel: { name: 'start' },
+  einstellungen: { name: 'start' },
+  ranks: { name: 'start' },
+  historie: { name: 'start' },
+  statistik: { name: 'start' },
+  benutzer: { name: 'einstellungen' },
+}
+
+export function elternRoute(route: Route): Route {
+  return ELTERN_ROUTE[route.name] ?? { name: 'start' }
+}
+
 export function navigiere(route: Route): void {
   const ziel = routeZuHash(route)
   if (window.location.hash === ziel) return
@@ -67,11 +85,6 @@ export function ersetzeRoute(route: Route): void {
   if (window.location.hash === ziel) return
   window.history.replaceState(null, '', ziel)
   window.dispatchEvent(new Event('hashchange'))
-}
-
-export function zurueck(): void {
-  if (window.history.length > 1) window.history.back()
-  else navigiere({ name: 'start' })
 }
 
 export function useRoute(): Route {
