@@ -282,6 +282,22 @@ describe('App', () => {
     expect(abzugKnopf('Bert', 1)).toHaveProperty('disabled', false)
   })
 
+  it('führt vom Spielverlauf nach Bummerl-Sieg-Dialog per Zurück zurück zum Hauptmenü', async () => {
+    const user = await spielStarten()
+
+    // Bummerl gewinnen und direkt aus dem Sieg-Dialog heraus das Spiel beenden.
+    await user.click(abzugKnopf('Anna', 3))
+    await user.click(abzugKnopf('Anna', 3))
+    await user.click(abzugKnopf('Anna', 1))
+    const dialog = screen.getByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Spiel beenden' }))
+
+    expect(await screen.findByRole('heading', { name: 'Spielverlauf' })).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Zurück' }))
+    expect(await screen.findByRole('button', { name: 'Spiel starten' })).toBeTruthy()
+  })
+
   it('führt der Zurück-Pfeil zur logischen Eltern-Route statt zum Browser-Verlauf', async () => {
     const user = userEvent.setup()
     render(<App />)
