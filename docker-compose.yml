@@ -1,0 +1,38 @@
+services:
+  schnapsapp:
+    build: .
+    image: schnapsapp:latest
+    container_name: schnapsapp
+    restart: unless-stopped
+
+    ports:
+      # Hinter dem Reverse Proxy: auf 127.0.0.1 binden, damit der Port nicht
+      # direkt aus dem Netz erreichbar ist.
+      - '${BIND_ADDRESS:-0.0.0.0}:${PORT:-8080}:8080'
+
+    environment:
+      TZ: ${TZ:-Europe/Vienna}
+      # Anzahl vertrauenswürdiger Proxys vor der App (für die echte Client-IP).
+      # 0 (Standard) = keinem Proxy-Header vertrauen. Nur hochsetzen, wenn
+      # tatsächlich ein Reverse Proxy davorsteht – sonst kann jeder Client per
+      # X-Forwarded-For die Login-Bremse umgehen.
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+      # Nur auf false setzen, wenn ohne HTTPS getestet wird.
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      SESSION_DAYS: ${SESSION_DAYS:-30}
+      # Beim allerersten Start wird daraus der Administrator angelegt.
+      # Ohne ADMIN_PASSWORD erzeugt der Server eines und schreibt es ins Log.
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+
+    volumes:
+      - schnapsen-daten:/data
+
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  schnapsen-daten:
