@@ -551,6 +551,65 @@ h3 {
   font-weight: 700;
 }
 
+/*
+ * Vierer-Punktekategorien (Gang, Schnapser, Kontrabauernschnapser, …):
+ * anders als die drei kurzen Zweier-Optionen ist die Anzahl frei erweiterbar
+ * und die Namen können lang sein – daher ein flexibles Raster statt fixer
+ * 3 Spalten, mit Zeilenumbruch statt abgeschnittenem Text.
+ */
+.kategorie-gitter {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
+}
+
+.kategorie-knopf {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 8px 6px 6px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 58px;
+  text-align: center;
+  transition: transform 0.06s ease;
+}
+
+.kategorie-knopf:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.kategorie-knopf:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.kategorie-knopf:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.kategorie-knopf__zahl {
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.kategorie-knopf__text {
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
 .spieler__fuss {
   display: flex;
   justify-content: space-between;

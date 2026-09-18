@@ -245,18 +245,18 @@ function SpielerKarte({
       {spiel.modus === 'vierer' && (
         <>
           {kategorien.length > 0 && (
-            <div className="spieler__abzug">
+            <div className="kategorie-gitter">
               {kategorien.map((kategorie) => (
                 <button
                   type="button"
                   key={kategorie.id}
-                  className="abzug-knopf"
+                  className="kategorie-knopf"
                   disabled={!aenderbar}
                   onClick={() => onAbziehen(index, kategorie.punkte)}
                   title={`${parteiName(spiel, index)} gewinnt die Partie: ${kategorie.name}`}
                 >
-                  <span className="abzug-knopf__zahl">−{kategorie.punkte}</span>
-                  <span className="abzug-knopf__text">{kategorie.name}</span>
+                  <span className="kategorie-knopf__zahl">−{kategorie.punkte}</span>
+                  <span className="kategorie-knopf__text">{kategorie.name}</span>
                 </button>
               ))}
             </div>
