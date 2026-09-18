@@ -7,11 +7,10 @@ Zwei Bausteine:
 
 1. **LXC-Container mit Docker** – darin läuft `docker compose` genau wie lokal beschrieben
    (siehe [`README.md`](README.md#docker)).
-2. **Reverse Proxy mit TLS** – terminiert HTTPS für deine Domain und leitet an den Container
-   weiter. Der App-Container selbst spricht nur HTTP.
-
-Falls du bereits einen Reverse Proxy betreibst (z. B. für andere Dienste), überspringe Schritt 2
-und häng die App dort ein.
+2. **HTTPS von außen** – über **Cloudflare Tunnel** (empfohlen, siehe Schritt 4): kein
+   Port-Forwarding am Router nötig, funktioniert auch hinter NAT/CGNAT, automatisches
+   Zertifikat. Alternativ ein eigener Reverse Proxy mit Caddy, falls du keine Domain bei
+   Cloudflare hast oder bereits einen Proxy betreibst.
 
 ---
 
@@ -59,7 +58,7 @@ docker run --rm hello-world   # sollte erfolgreich durchlaufen
 
 ```bash
 cd /opt
-git clone <URL-deines-Repos> schnapsapp
+git clone https://github.com/alexgebhart29/schnapsenz-hler.git schnapsapp
 cd schnapsapp
 cp .env.example .env
 nano .env
@@ -86,10 +85,50 @@ docker compose logs -f
 
 Beim allerersten Start zeigt das Log das Admin-Passwort einmalig an – notieren, dann `Strg+C`.
 
-## 4. Reverse Proxy mit automatischem HTTPS
+## 4. HTTPS von außen
 
-Am wenigsten Handarbeit macht **Caddy**: er holt sich das Zertifikat bei Let's Encrypt selbst und
-erneuert es automatisch. Läuft am einfachsten im selben Container.
+### 4a. Cloudflare Tunnel (empfohlen)
+
+Voraussetzung: deine Domain läuft bereits über Cloudflare (DNS dort verwaltet, kostenloser Plan
+reicht). Der Tunnel baut die Verbindung **von innen nach außen** zu Cloudflare auf – du musst
+weder einen Port an deinem Router freigeben noch eine öffentliche IP haben.
+
+1. [dash.teams.cloudflare.com](https://dash.teams.cloudflare.com) → **Networks → Tunnels →
+   Create a tunnel** → Typ „Cloudflared“ → Namen vergeben, z. B. `schnapsapp`.
+2. Cloudflare zeigt dir einen Installationsbefehl mit einem langen **Token** – nur den Token
+   brauchst du, kopieren.
+3. Im selben Assistenten, Tab **„Public Hostname“**: Hostname `schnapsen.deine-domain.at`
+   eintragen, **Service**: `HTTP`, **URL**: `schnapsapp:8080` (der Compose-Servicename – die
+   beiden Container sprechen intern direkt miteinander, ganz ohne den Host-Port). Speichern –
+   Cloudflare legt den passenden DNS-Eintrag automatisch an.
+4. In der `.env`:
+
+   ```env
+   COMPOSE_PROFILES=cloudflare
+   CLOUDFLARE_TUNNEL_TOKEN=<der Token aus Schritt 2>
+   ```
+
+5. Neu starten, damit der Tunnel-Dienst mitgestartet wird:
+
+   ```bash
+   docker compose up -d
+   docker compose logs -f cloudflared   # sollte "Registered tunnel connection" zeigen
+   ```
+
+Das Cookie bleibt trotzdem `secure` (Browser ↔ Cloudflare ist HTTPS, das zählt) und
+`TRUST_PROXY=1` bleibt richtig – cloudflared reicht die echte Client-IP unverändert als
+`X-Forwarded-For` durch, genau ein Hop.
+
+**Für maximale Absicherung** kannst du danach den Host-Port ganz schließen, weil cloudflared die
+App bereits über das interne Docker-Netzwerk erreicht: In der `.env` `BIND_ADDRESS=127.0.0.1`
+setzen (Standard sowieso schon empfohlen) oder den `ports:`-Abschnitt in der
+`docker-compose.yml` ganz entfernen, wenn du auch keinen lokalen Zugriff mehr brauchst.
+
+### 4b. Alternative: eigener Reverse Proxy mit Caddy
+
+Falls deine Domain nicht bei Cloudflare liegt oder du lieber selbst terminierst: **Caddy** holt
+sich das Zertifikat bei Let's Encrypt selbst und erneuert es automatisch. Läuft am einfachsten
+direkt im LXC-Container.
 
 ```bash
 apt install -y debian-keyring debian-archive-keyring apt-transport-https
@@ -119,9 +158,9 @@ diesen Container weitergeleitet (Portweiterleitung im Router, ggf. NAT in Proxmo
 Caddy setzt `X-Forwarded-For` und `X-Forwarded-Proto` automatisch – passend zu `TRUST_PROXY=1`
 in der `.env`.
 
-**Alternative:** Nutzt du bereits Nginx Proxy Manager, Traefik oder einen Cloudflare Tunnel
-anderswo im Netz, reicht dort ein Eintrag, der auf `http://<Container-IP>:8080` zeigt – dann
-brauchst du Caddy in diesem Container nicht.
+**Alternative:** Nutzt du bereits Nginx Proxy Manager oder Traefik anderswo im Netz, reicht dort
+ein Eintrag, der auf `http://<Container-IP>:8080` zeigt – dann brauchst du Caddy in diesem
+Container nicht.
 
 ## 5. Nach dem Deploy
 

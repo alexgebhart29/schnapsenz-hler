@@ -34,5 +34,25 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  # Cloudflare Tunnel – nur aktiv, wenn COMPOSE_PROFILES=cloudflare in der .env
+  # steht (siehe DEPLOY.md). Kein Port-Forwarding am Router nötig: cloudflared
+  # baut die Verbindung selbst nach außen zu Cloudflare auf und erreicht die
+  # App hier direkt über den internen Compose-Netzwerknamen "schnapsapp:8080".
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: schnapsapp-cloudflared
+    restart: unless-stopped
+    profiles: ['cloudflare']
+    command: tunnel run
+    environment:
+      # Läuft nur mit COMPOSE_PROFILES=cloudflare überhaupt an; ohne gesetzten
+      # Token bricht dann nur dieser eine Dienst ab (sichtbar per
+      # `docker compose logs cloudflared`), der Rest bleibt unberührt.
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - schnapsapp
+    security_opt:
+      - no-new-privileges:true
+
 volumes:
   schnapsen-daten:

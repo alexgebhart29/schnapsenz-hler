@@ -114,7 +114,10 @@ Dateisystem**; beschreibbar ist nur das Volume `/data` mit der SQLite-Datei. SQL
 
 ### Hinter dem Reverse Proxy
 
-Der Container spricht nur HTTP auf Port 8080 und erwartet, dass davor jemand TLS terminiert:
+Der Container spricht nur HTTP auf Port 8080 und erwartet, dass davor jemand TLS terminiert –
+egal ob Caddy, Nginx Proxy Manager, Traefik oder **Cloudflare Tunnel** (dafür bringt
+`docker-compose.yml` bereits einen optionalen `cloudflared`-Dienst mit, siehe
+[`DEPLOY.md`](DEPLOY.md#4-https-von-außen)):
 
 - `BIND_ADDRESS=127.0.0.1` in der `.env`, wenn der Proxy auf demselben Host läuft
 - `TRUST_PROXY=1` (Anzahl der Proxys) setzen, damit die echte Client-IP für die Login-Bremse
