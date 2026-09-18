@@ -1,5 +1,5 @@
 import { navigiere } from '../navigation'
-import { fuehreSyncAus, useSitzung } from '../core/session'
+import { abmelden, fuehreSyncAus, useSitzung } from '../core/session'
 import { formatZeit } from '../format'
 import { useAppState } from '../core/store'
 
@@ -59,6 +59,16 @@ export function SyncAnzeige() {
           Erneut
         </button>
       )}
+      <button
+        type="button"
+        className="btn btn--geist btn--klein"
+        onClick={() => {
+          void abmelden()
+          navigiere({ name: 'anmelden' })
+        }}
+      >
+        Abmelden
+      </button>
     </div>
   )
 }
