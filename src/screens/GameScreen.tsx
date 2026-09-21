@@ -5,6 +5,8 @@ import { formatZeit } from '../format'
 import { navigiere } from '../navigation'
 import {
   ABZUG_OPTIONEN,
+  anzeigeBummerl,
+  anzeigeGewinner,
   BETTLER_PUNKTE,
   bummerlAbschliessen,
   entschieden,
@@ -44,6 +46,9 @@ export function GameScreen({ spiel, state }: Props) {
   // Steht das Bummerl schon fest, hier vorab anzeigen, ob es als Schneider zählt.
   const wirdSchneider =
     sieger !== null && schneiderAktiv && spiel.punkte[gegner(sieger)] === spiel.startwert
+  // Bummerl-Anzeige (Leiste, Verlauf, Dialoge): umgekehrt zur internen
+  // Zählung, die für Rangliste/Statistik weiterläuft – siehe anzeigeBummerl().
+  const [anzeige0, anzeige1] = anzeigeBummerl(spiel)
 
   const update = (fn: (spiel: Spiel) => Spiel) => actions.updateSpiel(spiel.id, fn)
 
@@ -77,9 +82,9 @@ export function GameScreen({ spiel, state }: Props) {
     >
       <div className="bummerl-leiste">
         <span className="bummerl-leiste__name">{parteiName(spiel, 0)}</span>
-        <span className="bummerl-leiste__wert mono-zahl">{spiel.bummerl[0]}</span>
+        <span className="bummerl-leiste__wert mono-zahl">{anzeige0}</span>
         <span className="bummerl-leiste__label">Bummerl</span>
-        <span className="bummerl-leiste__wert mono-zahl">{spiel.bummerl[1]}</span>
+        <span className="bummerl-leiste__wert mono-zahl">{anzeige1}</span>
         <span className="bummerl-leiste__name">{parteiName(spiel, 1)}</span>
       </div>
 
@@ -87,8 +92,10 @@ export function GameScreen({ spiel, state }: Props) {
         <section className="karte">
           <h2 className="karte__titel">Spiel beendet</h2>
           <p className="hinweis" style={{ margin: 0 }}>
-            Endstand {spiel.bummerl[0]} : {spiel.bummerl[1]}
-            {gesamtSieger !== null ? ` · Sieger: ${parteiName(spiel, gesamtSieger)}` : ' · unentschieden'}.
+            Endstand {anzeige0} : {anzeige1}
+            {gesamtSieger !== null
+              ? ` · Sieger: ${parteiName(spiel, anzeigeGewinner(gesamtSieger))}`
+              : ' · unentschieden'}.
             Du kannst jederzeit weiterspielen – Bummerl-Stand und Verlauf bleiben erhalten.
           </p>
           <button
@@ -137,7 +144,7 @@ export function GameScreen({ spiel, state }: Props) {
               <div className="reihe reihe--verteilt klein" key={eintrag.nummer}>
                 <span className="muted">#{eintrag.nummer}</span>
                 <span className="wachsen" style={{ fontWeight: 600 }}>
-                  {parteiName(spiel, eintrag.gewinner)}
+                  {parteiName(spiel, anzeigeGewinner(eintrag.gewinner))}
                 </span>
                 {eintrag.schneider && (
                   <span className="abzeichen abzeichen--rang" title="Verlierer hat keinen Punkt gemacht, zählt doppelt">
@@ -157,10 +164,10 @@ export function GameScreen({ spiel, state }: Props) {
       {sieger !== null && (
         <Dialog
           icon="🏆"
-          titel={`${parteiName(spiel, sieger)} gewinnt das Bummerl!${wirdSchneider ? ' Schneider!' : ''}`}
-          text={`${wirdSchneider ? 'Der Verlierer hat keinen Punkt gemacht – zählt doppelt. ' : ''}Bummerl-Stand: ${spiel.bummerl[0]} : ${spiel.bummerl[1]} → ${
-            sieger === 0 ? spiel.bummerl[0] + (wirdSchneider ? 2 : 1) : spiel.bummerl[0]
-          } : ${sieger === 1 ? spiel.bummerl[1] + (wirdSchneider ? 2 : 1) : spiel.bummerl[1]}`}
+          titel={`${parteiName(spiel, anzeigeGewinner(sieger))} gewinnt das Bummerl!${wirdSchneider ? ' Schneider!' : ''}`}
+          text={`${wirdSchneider ? 'Der Verlierer hat keinen Punkt gemacht – zählt doppelt. ' : ''}Bummerl-Stand: ${anzeige0} : ${anzeige1} → ${
+            anzeigeGewinner(sieger) === 0 ? anzeige0 + (wirdSchneider ? 2 : 1) : anzeige0
+          } : ${anzeigeGewinner(sieger) === 1 ? anzeige1 + (wirdSchneider ? 2 : 1) : anzeige1}`}
           aktionen={
             <>
               <button type="button" className="btn btn--primaer btn--gross" onClick={naechstesBummerl}>
@@ -180,7 +187,7 @@ export function GameScreen({ spiel, state }: Props) {
       {dialog === 'spielBeenden' && (
         <Dialog
           titel="Spiel beenden?"
-          text={`Das Spiel wird mit ${spiel.bummerl[0]} : ${spiel.bummerl[1]} Bummerl in der Historie gespeichert.`}
+          text={`Das Spiel wird mit ${anzeige0} : ${anzeige1} Bummerl in der Historie gespeichert.`}
           onAbbrechen={() => setDialog(null)}
           aktionen={
             <>
@@ -218,7 +225,7 @@ function SpielerKarte({
     <section className={hervorgehoben ? 'spieler spieler--sieger' : 'spieler'}>
       <div className="spieler__kopf">
         <h2 className="spieler__name">{parteiName(spiel, index)}</h2>
-        <span className="klein muted">{spiel.bummerl[index]} Bummerl</span>
+        <span className="klein muted">{spiel.bummerl[gegner(index)]} Bummerl</span>
       </div>
 
       <div

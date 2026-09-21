@@ -281,12 +281,34 @@ export function undo(spiel: Spiel): Spiel {
   return wiederhergestellt
 }
 
-/** Spieler mit den meisten Bummerl – null bei Gleichstand. */
+/**
+ * Spieler mit den meisten Bummerl – null bei Gleichstand. Grundlage für
+ * Rangliste/Statistik: zählt, wer seinen eigenen Zähler öfter auf 0 gebracht
+ * hat. Für die reine Bummerl-Anzeige (Leiste, Verlauf, Sieger-Dialog) gilt
+ * stattdessen die umgekehrte Zuschreibung, siehe [[anzeigeBummerl]].
+ */
 export function spielSieger(spiel: Spiel): SpielerIndex | null {
   if (spiel.bummerl[0] === spiel.bummerl[1]) return null
   return spiel.bummerl[0] > spiel.bummerl[1] ? 0 : 1
 }
 
+/**
+ * Bummerl-Anzeige aus Sicht des Tisches: Wer seinen eigenen Zähler zuerst auf
+ * 0 bringt, gilt intern als Sieger dieses Bummerls (Grundlage für Rangliste
+ * und Statistik). In der Bummerl-Anzeige selbst – Leiste, Sieger-Dialog,
+ * Bummerl-Verlauf – wird das Bummerl aber dem Gegner gutgeschrieben. Diese
+ * Funktion liefert die dafür vertauschten Zählerstände.
+ */
+export function anzeigeBummerl(spiel: Spiel): [number, number] {
+  return [spiel.bummerl[1], spiel.bummerl[0]]
+}
+
+/** Wer in der Bummerl-Anzeige als Sieger des Bummerls/Spiels gilt (siehe [[anzeigeBummerl]]). */
+export function anzeigeGewinner(gewinner: SpielerIndex): SpielerIndex {
+  return gegner(gewinner)
+}
+
 export function endstandText(spiel: Spiel): string {
-  return `${spiel.bummerl[0]} : ${spiel.bummerl[1]}`
+  const [a, b] = anzeigeBummerl(spiel)
+  return `${a} : ${b}`
 }

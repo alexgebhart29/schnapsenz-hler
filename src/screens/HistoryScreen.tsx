@@ -3,7 +3,7 @@ import { Dialog } from '../components/Dialog'
 import { Screen } from '../components/Screen'
 import { formatDatum, formatZeit } from '../format'
 import { navigiere } from '../navigation'
-import { parteiName, spielSieger } from '../core/schnapsen'
+import { anzeigeBummerl, anzeigeGewinner, parteiName, spielSieger } from '../core/schnapsen'
 import { actions } from '../core/store'
 import type { AppState, Spiel } from '../core/types'
 
@@ -93,6 +93,10 @@ function SpielEintrag({
   onLoeschen: () => void
 }) {
   const sieger = spiel.status === 'beendet' ? spielSieger(spiel) : null
+  // Bummerl-Anzeige: umgekehrt zur internen Zählung, die für Rangliste/
+  // Statistik weiterläuft – siehe schnapsen.ts → anzeigeBummerl().
+  const anzeigeSieger = sieger === null ? null : anzeigeGewinner(sieger)
+  const [anzeige0, anzeige1] = anzeigeBummerl(spiel)
 
   return (
     <div className="karte" style={{ padding: 0, gap: 0 }}>
@@ -105,9 +109,13 @@ function SpielEintrag({
       >
         <div className="wachsen">
           <div className="eintrag__titel">
-            <span style={sieger === 0 ? { color: 'var(--gold)' } : undefined}>{parteiName(spiel, 0)}</span>
+            <span style={anzeigeSieger === 0 ? { color: 'var(--gold)' } : undefined}>
+              {parteiName(spiel, 0)}
+            </span>
             <span className="muted"> vs. </span>
-            <span style={sieger === 1 ? { color: 'var(--gold)' } : undefined}>{parteiName(spiel, 1)}</span>
+            <span style={anzeigeSieger === 1 ? { color: 'var(--gold)' } : undefined}>
+              {parteiName(spiel, 1)}
+            </span>
           </div>
           <div className="eintrag__meta">
             {formatDatum(spiel.datum)} · Startwert {spiel.startwert}
@@ -116,7 +124,7 @@ function SpielEintrag({
         </div>
         {spiel.status === 'laufend' && <span className="abzeichen abzeichen--laufend">läuft</span>}
         <span className="eintrag__wert">
-          {spiel.bummerl[0]} : {spiel.bummerl[1]}
+          {anzeige0} : {anzeige1}
         </span>
       </button>
 
@@ -134,7 +142,7 @@ function SpielEintrag({
                 <div className="reihe reihe--verteilt klein" key={eintrag.nummer}>
                   <span className="muted">#{eintrag.nummer}</span>
                   <span className="wachsen" style={{ fontWeight: 600 }}>
-                    {parteiName(spiel, eintrag.gewinner)}
+                    {parteiName(spiel, anzeigeGewinner(eintrag.gewinner))}
                   </span>
                   {eintrag.schneider && (
                     <span className="abzeichen abzeichen--rang" title="Verlierer hat keinen Punkt gemacht, zählte doppelt">
@@ -153,7 +161,9 @@ function SpielEintrag({
           {spiel.status === 'beendet' && spiel.beendetAm && (
             <p className="hinweis" style={{ margin: 0 }}>
               Beendet am {formatDatum(spiel.beendetAm)}
-              {sieger !== null ? ` · Sieger: ${parteiName(spiel, sieger)}` : ' · unentschieden'}
+              {anzeigeSieger !== null
+                ? ` · Sieger: ${parteiName(spiel, anzeigeSieger)}`
+                : ' · unentschieden'}
             </p>
           )}
 

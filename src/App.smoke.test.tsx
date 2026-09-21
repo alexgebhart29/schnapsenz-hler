@@ -151,7 +151,9 @@ describe('App', () => {
     await user.click(abzugKnopf('Anna', 3))
 
     const dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByText('Anna gewinnt das Bummerl!')).toBeTruthy()
+    // Annas eigener Zähler erreicht 0 (Rangliste zählt das weiterhin für Anna),
+    // aber in der Bummerl-Anzeige wird das Bummerl dem Gegner gutgeschrieben.
+    expect(within(dialog).getByText('Bert gewinnt das Bummerl!')).toBeTruthy()
 
     await user.click(within(dialog).getByRole('button', { name: 'Neues Bummerl' }))
     expect(screen.queryByRole('dialog')).toBeNull()
