@@ -73,6 +73,11 @@ export function raeumeTischeVierAuf(jetzt: number = Date.now()): void {
   }
 }
 
+/** Wie viele Vierer-Tische ein Konto gerade selbst eröffnet hat – siehe zaehleTischeVonTeilnehmer (2p-Pendant). */
+export function zaehleTischeVierVonTeilnehmer(teilnehmerId: string): number {
+  return [...tische.values()].filter((tisch) => tisch.spieler[0]?.teilnehmer.id === teilnehmerId).length
+}
+
 export function erstelleTischVierer(teilnehmer: Teilnehmer, senden: Sender, bettlerErlaubt: boolean): TischVierer {
   const code = erzeugeCode()
   const tisch: TischVierer = {

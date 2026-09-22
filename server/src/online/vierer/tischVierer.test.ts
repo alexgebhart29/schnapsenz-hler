@@ -9,6 +9,7 @@ import {
   starteSpielVierer,
   tritteBeiVierer,
   wechsleSitzVierer,
+  zaehleTischeVierVonTeilnehmer,
   ziehAnsagen,
   ziehKarteAusVierer,
   ziehPassen,
@@ -271,5 +272,18 @@ describe('Spritzen über den Tisch', () => {
 
     // Schnapser (6) * Spritzen-Faktor 4 = 24 -> reicht, um das Bummerl (24) direkt zu gewinnen.
     expect(tisch.bummerl).toEqual([1, 0])
+  })
+})
+
+describe('zaehleTischeVierVonTeilnehmer', () => {
+  it('zählt nur Vierer-Tische, die dieses Konto selbst eröffnet hat', () => {
+    expect(zaehleTischeVierVonTeilnehmer('Anna')).toBe(0)
+    erstelleTischVierer(spieler('Anna'), () => {}, true)
+    erstelleTischVierer(spieler('Anna'), () => {}, true)
+    const drittTisch = erstelleTischVierer(spieler('Bert'), () => {}, true)
+    tritteBeiVierer(drittTisch.code, spieler('Anna'), () => {}) // Beitreten zählt nicht als eigener Tisch.
+
+    expect(zaehleTischeVierVonTeilnehmer('Anna')).toBe(2)
+    expect(zaehleTischeVierVonTeilnehmer('Bert')).toBe(1)
   })
 })

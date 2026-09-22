@@ -21,6 +21,7 @@ import {
   raeumeTischeAuf,
   sendeZustandAnAlle,
   tritteBei,
+  zaehleTischeVonTeilnehmer,
   ziehBubeTauschen,
   ziehKarteAus,
   ziehMelden,
@@ -39,6 +40,7 @@ import {
   starteSpielVierer,
   tritteBeiVierer,
   wechsleSitzVierer,
+  zaehleTischeVierVonTeilnehmer,
   ziehAnsagen,
   ziehKarteAusVierer,
   ziehMeldenVierer,
@@ -65,6 +67,9 @@ const istFarbe = (wert: unknown): wert is Farbe => GUELTIGE_FARBEN.includes(wert
 
 const GUELTIGE_ANSAGEN: Ansage[] = ['bettler', 'schnapser', 'gang', 'zehnerGang', 'bauernschnapser']
 const istAnsage = (wert: unknown): wert is Ansage => GUELTIGE_ANSAGEN.includes(wert as Ansage)
+
+/** Grenze gegen ein Konto, das den Server mit vielen offenen Tischen fluten will. */
+const MAX_TISCHE_PRO_KONTO = 5
 
 /** Zwei-Zahlen-Tupel für einen übernommenen Bummerl-Stand beim Fortsetzen eines analogen Spiels. */
 function leseTischStart(wert: unknown): TischStart | undefined {
@@ -105,6 +110,10 @@ function verarbeiteNachricht(
   const senden = (payload: unknown) => ws.send(JSON.stringify(payload))
 
   if (nachricht.typ === 'tisch_erstellen') {
+    if (zaehleTischeVonTeilnehmer(teilnehmer.id) >= MAX_TISCHE_PRO_KONTO) {
+      senden({ typ: 'fehler', text: 'Du hast schon zu viele eigene Tische offen' })
+      return
+    }
     const tisch = erstelleTisch(teilnehmer, senden, leseTischStart(nachricht.start))
     zustand.wert = { art: 'zweier', tisch, meinIndex: 0 }
     senden({ typ: 'tisch_erstellt' })
@@ -125,6 +134,10 @@ function verarbeiteNachricht(
   }
 
   if (nachricht.typ === 'tisch_erstellen_vierer') {
+    if (zaehleTischeVierVonTeilnehmer(teilnehmer.id) >= MAX_TISCHE_PRO_KONTO) {
+      senden({ typ: 'fehler', text: 'Du hast schon zu viele eigene Tische offen' })
+      return
+    }
     const bettlerErlaubt = nachricht.bettlerErlaubt === true
     const tisch = erstelleTischVierer(teilnehmer, senden, bettlerErlaubt)
     zustand.wert = { art: 'vierer', tisch }
@@ -261,8 +274,18 @@ function verarbeiteNachricht(
   if (fehlerText) senden({ typ: 'fehler', text: fehlerText })
 }
 
+/**
+ * Grobe Grenzen gegen einen böswilligen/kompromittierten, aber authentifizierten
+ * Client, der den Server mit übergroßen oder sehr vielen Nachrichten belasten
+ * will – alle echten Nachrichten (eine Karte, ein Sitzplatz, eine Ansage) sind
+ * winzig, daher können beide Grenzen sehr eng gezogen werden.
+ */
+const MAX_NACHRICHTENGROESSE_BYTES = 4 * 1024
+const NACHRICHTEN_LIMIT = 40
+const NACHRICHTEN_FENSTER_MS = 5 * 1000
+
 export function registriereOnlineWebsocket(server: Server): void {
-  const wss = new WebSocketServer({ noServer: true })
+  const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_NACHRICHTENGROESSE_BYTES })
 
   server.on('upgrade', (anfrage: IncomingMessage, socket: Socket, kopf: Buffer) => {
     if (anfrage.url?.split('?')[0] !== '/api/online/ws') {
@@ -282,8 +305,18 @@ export function registriereOnlineWebsocket(server: Server): void {
 
   wss.on('connection', (ws: WebSocket, _anfrage: IncomingMessage, teilnehmer: Teilnehmer) => {
     const zustand: { wert: VerbindungsZustand } = { wert: null }
+    // Zeitstempel der letzten Nachrichten in diesem Fenster, fürs simple Sliding-Window-Limit.
+    let nachrichtenZeitstempel: number[] = []
 
     ws.on('message', (daten) => {
+      const jetzt = Date.now()
+      nachrichtenZeitstempel = nachrichtenZeitstempel.filter((t) => jetzt - t < NACHRICHTEN_FENSTER_MS)
+      if (nachrichtenZeitstempel.length >= NACHRICHTEN_LIMIT) {
+        ws.send(JSON.stringify({ typ: 'fehler', text: 'zu viele Nachrichten, bitte kurz warten' }))
+        return
+      }
+      nachrichtenZeitstempel.push(jetzt)
+
       try {
         verarbeiteNachricht(ws, teilnehmer, zustand, JSON.parse(daten.toString()))
       } catch {

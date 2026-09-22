@@ -5,6 +5,7 @@ import {
   listeOffeneTische,
   oeffentlicheSicht,
   tritteBei,
+  zaehleTischeVonTeilnehmer,
   ziehKarteAus,
   type Teilnehmer,
 } from './tisch.js'
@@ -165,5 +166,18 @@ describe('Stich-Sichtbarkeit', () => {
       { nummer: 1, sieger: 0, karten: [k('pik', 'A'), k('pik', 'K')] },
       { nummer: 2, sieger: 1, karten: [k('karo', 'K'), k('karo', 'A')] },
     ])
+  })
+})
+
+describe('zaehleTischeVonTeilnehmer', () => {
+  it('zählt nur Tische, die dieses Konto selbst eröffnet hat', () => {
+    expect(zaehleTischeVonTeilnehmer('Anna')).toBe(0)
+    erstelleTisch(spieler('Anna'), () => {})
+    erstelleTisch(spieler('Anna'), () => {})
+    const drittTisch = erstelleTisch(spieler('Bert'), () => {})
+    tritteBei(drittTisch.code, spieler('Anna'), () => {}) // Beitreten zählt nicht als eigener Tisch.
+
+    expect(zaehleTischeVonTeilnehmer('Anna')).toBe(2)
+    expect(zaehleTischeVonTeilnehmer('Bert')).toBe(1)
   })
 })

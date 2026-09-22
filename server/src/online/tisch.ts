@@ -89,6 +89,15 @@ export function raeumeTischeAuf(jetzt: number = Date.now()): void {
   }
 }
 
+/**
+ * Wie viele Tische ein Konto gerade selbst eröffnet hat – begrenzt, damit ein
+ * einzelnes (kompromittiertes) Konto nicht beliebig viele Tische anlegen und
+ * so den Server mit In-Memory-Zustand fluten kann.
+ */
+export function zaehleTischeVonTeilnehmer(teilnehmerId: string): number {
+  return [...tische.values()].filter((tisch) => tisch.spieler[0]?.teilnehmer.id === teilnehmerId).length
+}
+
 /** Grenzen für einen übernommenen Bummerl-Stand – schützt vor kaputten/böswilligen Payloads. */
 const clampBummerlPunkt = (wert: number): number =>
   Number.isFinite(wert) ? Math.min(40, Math.max(0, Math.round(wert))) : BUMMERL_STARTWERT

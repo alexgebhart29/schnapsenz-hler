@@ -85,6 +85,11 @@ docker compose logs -f
 
 Beim allerersten Start zeigt das Log das Admin-Passwort einmalig an – notieren, dann `Strg+C`.
 
+**Checkliste vor dem Freigeben ins Internet:** `COOKIE_SECURE=true` (s. o.) und `TRUST_PROXY` passend
+zur tatsächlichen Anzahl vorgeschalteter Proxys gesetzt – sonst wird entweder das Session-Cookie im
+Klartext übertragen oder die Login-Bremse (IP-Sperre nach Fehlversuchen) lässt sich über gefälschte
+`X-Forwarded-For`-Header umgehen.
+
 ## 4. HTTPS von außen
 
 ### 4a. Cloudflare Tunnel (empfohlen)
