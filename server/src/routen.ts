@@ -28,6 +28,7 @@ import {
 import { pruefeSyncAnfrage } from './validierung.js'
 import { synchronisiere } from './sync.js'
 import { listeOffeneTische } from './online/tisch.js'
+import { listeOffeneTischeVierer } from './online/vierer/tischVierer.js'
 
 export const routen = Router()
 
@@ -205,5 +206,10 @@ routen.post('/sync', nurJson, nurAngemeldet, (req: Request, res: Response) => {
 /** Offene Tische (warten auf einen zweiten Spieler) – für angemeldete Nutzer sichtbar. */
 routen.get('/online/tische', nurAngemeldet, (_req: Request, res: Response) => {
   res.json({ tische: listeOffeneTische() })
+})
+
+/** Offene Vierer-Tische (warten auf weitere Spieler). */
+routen.get('/online/tische-vierer', nurAngemeldet, (_req: Request, res: Response) => {
+  res.json({ tische: listeOffeneTischeVierer() })
 })
 

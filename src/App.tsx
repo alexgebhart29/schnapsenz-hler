@@ -8,6 +8,7 @@ import { HistoryScreen } from './screens/HistoryScreen'
 import { LoginScreen } from './screens/LoginScreen'
 import { OnlineLobbyScreen } from './screens/OnlineLobbyScreen'
 import { OnlineTischScreen } from './screens/OnlineTischScreen'
+import { OnlineTischViererScreen } from './screens/OnlineTischViererScreen'
 import { RanksScreen } from './screens/RanksScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { StartScreen } from './screens/StartScreen'
@@ -84,6 +85,8 @@ export function App() {
         <OnlineLobbyScreen state={state} />
       ) : route.name === 'online-tisch' ? (
         <OnlineTischScreen state={state} kartendesign={state.settings.kartendesign} />
+      ) : route.name === 'online-tisch-vierer' ? (
+        <OnlineTischViererScreen state={state} kartendesign={state.settings.kartendesign} />
       ) : (
         <StartScreen state={state} />
       )}

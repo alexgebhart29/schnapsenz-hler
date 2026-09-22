@@ -84,4 +84,8 @@ export const api = {
   /** Offene Online-Tische (warten auf einen zweiten Spieler) – nur für angemeldete Nutzer. */
   offeneTische: () =>
     anfrage<{ tische: { id: string; ersteller: string }[] }>('/online/tische'),
+
+  /** Offene Vierer-Tische (warten auf weitere Spieler). */
+  offeneTischeVierer: () =>
+    anfrage<{ tische: { id: string; plaetze: (string | null)[] }[] }>('/online/tische-vierer'),
 }

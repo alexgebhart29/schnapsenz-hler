@@ -1,0 +1,259 @@
+import { useSyncExternalStore } from 'react'
+import type { Farbe, Karte } from './karten'
+import { bummerlAbschliessen, entschieden, punkteAbziehen } from './schnapsen'
+import { actions, getState } from './store'
+
+export type OnlineStatusVierer = 'getrennt' | 'verbindet' | 'wartet-auf-spieler' | 'laufend'
+
+export type SitzIndex = 0 | 1 | 2 | 3
+export type TeamIndex = 0 | 1
+export type Ansage = 'bettler' | 'schnapser' | 'gang' | 'zehnerGang' | 'bauernschnapser'
+
+export const ANSAGE_LABEL: Record<Ansage, string> = {
+  bettler: 'Bettler',
+  schnapser: 'Schnapser',
+  gang: 'Gang',
+  zehnerGang: '10er Gang',
+  bauernschnapser: 'Bauernschnapser',
+}
+
+/** Spiegelbild von server/src/online/vierer/tischVierer.ts → OeffentlicheSichtVierer. */
+export type OeffentlicheSichtVierer = {
+  meinIndex: SitzIndex
+  spielerNamen: [string, string, string, string]
+  meineHand: Karte[]
+  kartenAnzahl: [number, number, number, number]
+  phase: 'ansage' | 'trumpfwahl' | 'spritzen' | 'spielt' | 'beendet'
+  amZug: SitzIndex
+  offenerStich: { karte: Karte; spieler: SitzIndex }[]
+  trumpf: Farbe | null
+  aufgedeckteTrumpfkarte: Karte | null
+  ansageAnDerReihe: SitzIndex
+  ansageHoechste: { ansage: Ansage; spieler: SitzIndex } | null
+  ansageGepasst: SitzIndex[]
+  ansageGewinner: SitzIndex | null
+  aktiveAnsage: { ansage: Ansage; spieler: SitzIndex; team: TeamIndex } | null
+  spritzenStufe: 0 | 1 | 2
+  spritzenAmZug: TeamIndex | null
+  spritzenFaktor: 1 | 2 | 4
+  moeglicheAnsagen: Ansage[]
+  kannPassenAnsage: boolean
+  kannTrumpfBestimmen: boolean
+  kannSpritzen: boolean
+  legaleKarten: Karte[] | null
+  meldbareFarben: Farbe[]
+  bettlerErlaubt: boolean
+  bummerlPunkte: [number, number]
+  bummerl: [number, number]
+  gewinnerTeam: TeamIndex | null
+  spielpunkte: number | null
+}
+
+export type PartieErgebnisVierer = { gewinnerTeam: TeamIndex; spielpunkte: number }
+export type BummerlErgebnisVierer = { gewinnerTeam: TeamIndex; bummerl: [number, number] }
+
+export type OnlineZustandVierer = {
+  status: OnlineStatusVierer
+  sicht: OeffentlicheSichtVierer | null
+  letztesErgebnis: PartieErgebnisVierer | null
+  bummerlErgebnis: BummerlErgebnisVierer | null
+  fehler: string | null
+  /** Lokaler Spiel-Datensatz (Historie/Rangliste), an den dieses Match gekoppelt ist. */
+  verknuepftesSpielId: string | null
+}
+
+let zustand: OnlineZustandVierer = {
+  status: 'getrennt',
+  sicht: null,
+  letztesErgebnis: null,
+  bummerlErgebnis: null,
+  fehler: null,
+  verknuepftesSpielId: null,
+}
+
+const listeners = new Set<() => void>()
+let socket: WebSocket | null = null
+
+function setzeZustand(patch: Partial<OnlineZustandVierer>): void {
+  zustand = { ...zustand, ...patch }
+  for (const listener of listeners) listener()
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
+export function getOnlineZustandVierer(): OnlineZustandVierer {
+  return zustand
+}
+
+export function useOnlineZustandVierer(): OnlineZustandVierer {
+  return useSyncExternalStore(subscribe, getOnlineZustandVierer, getOnlineZustandVierer)
+}
+
+function socketUrl(): string {
+  const protokoll = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  return `${protokoll}://${window.location.host}/api/online/ws`
+}
+
+function sende(nachricht: unknown): void {
+  if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(nachricht))
+}
+
+/** Siehe onlineSitzung.ts (Zweier) für die Begründung: immer frisch verbinden statt eine alte Verbindung wiederzuverwenden. */
+function stelleVerbindungHer(nachErfolg: () => void): void {
+  socket?.close()
+  socket = null
+
+  setzeZustand({
+    status: 'verbindet',
+    sicht: null,
+    letztesErgebnis: null,
+    bummerlErgebnis: null,
+    fehler: null,
+    verknuepftesSpielId: null,
+  })
+  const ws = new WebSocket(socketUrl())
+  socket = ws
+
+  ws.addEventListener('open', () => nachErfolg())
+
+  ws.addEventListener('message', (event) => {
+    let daten: unknown
+    try {
+      daten = JSON.parse(String(event.data))
+    } catch {
+      return
+    }
+    if (typeof daten !== 'object' || daten === null) return
+    const nachricht = daten as { typ?: string; [schluessel: string]: unknown }
+
+    if (nachricht.typ === 'tisch_erstellt') {
+      setzeZustand({ status: 'wartet-auf-spieler' })
+      return
+    }
+    if (nachricht.typ === 'zustand4') {
+      const sicht = nachricht.sicht as OeffentlicheSichtVierer
+
+      // Nur der Ersteller (Sitz 0) legt den lokalen Spiel-Datensatz an – alle
+      // Geräte teilen sich denselben synchronisierten Bestand, ein zweiter
+      // Datensatz würde das Match doppelt zählen (siehe onlineSitzung.ts).
+      if (sicht.meinIndex === 0 && zustand.verknuepftesSpielId === null) {
+        const [name0, name1, name2, name3] = sicht.spielerNamen
+        const spiel = actions.neuesSpiel([name0, name1], {
+          modus: 'vierer',
+          partner: [name2, name3],
+          startwert: sicht.bummerlPunkte[0],
+        })
+        zustand = { ...zustand, verknuepftesSpielId: spiel.id }
+      }
+
+      const alleDa = sicht.spielerNamen.every((name) => name !== '…')
+      setzeZustand({ status: alleDa ? 'laufend' : 'wartet-auf-spieler', sicht, fehler: null })
+      return
+    }
+    if (nachricht.typ === 'partie4_beendet') {
+      const gewinnerTeam = nachricht.gewinnerTeam as TeamIndex
+      const spielpunkte = nachricht.spielpunkte as number
+      setzeZustand({ letztesErgebnis: { gewinnerTeam, spielpunkte } })
+
+      const { verknuepftesSpielId } = zustand
+      if (verknuepftesSpielId !== null) {
+        const schneiderAktiv = getState().settings.schneiderAktiv
+        actions.updateSpiel(verknuepftesSpielId, (s) => {
+          // Team-Index entspricht hier direkt dem lokalen Partei-Index (siehe
+          // Anlage oben: Team 0 = spieler[0]+partner[0], Team 1 = spieler[1]+partner[1]).
+          const nach = punkteAbziehen(s, gewinnerTeam, spielpunkte)
+          const sieger = entschieden(nach)
+          return sieger === null ? nach : bummerlAbschliessen(nach, sieger, undefined, schneiderAktiv)
+        })
+      }
+      return
+    }
+    if (nachricht.typ === 'bummerl4_gewonnen') {
+      setzeZustand({
+        bummerlErgebnis: {
+          gewinnerTeam: nachricht.gewinnerTeam as TeamIndex,
+          bummerl: nachricht.bummerl as [number, number],
+        },
+      })
+      return
+    }
+    if (nachricht.typ === 'fehler') {
+      setzeZustand({ fehler: String(nachricht.text) })
+    }
+  })
+
+  ws.addEventListener('close', () => {
+    if (socket === ws) {
+      socket = null
+      setzeZustand({ status: 'getrennt' })
+    }
+  })
+
+  ws.addEventListener('error', () => {
+    setzeZustand({ fehler: 'Verbindung fehlgeschlagen' })
+  })
+}
+
+export const onlineAktionenVierer = {
+  tischErstellen(bettlerErlaubt: boolean): void {
+    stelleVerbindungHer(() => sende({ typ: 'tisch_erstellen_vierer', bettlerErlaubt }))
+  },
+
+  tischBeitreten(tischId: string): void {
+    stelleVerbindungHer(() => sende({ typ: 'tisch_beitreten_vierer', tisch: tischId }))
+  },
+
+  ansageMachen(ansage: Ansage): void {
+    sende({ typ: 'ansage_machen', ansage })
+  },
+
+  ansagePassen(): void {
+    sende({ typ: 'ansage_passen' })
+  },
+
+  trumpfWaehlen(farbe: Farbe): void {
+    sende({ typ: 'trumpf_waehlen', farbe })
+  },
+
+  trumpfAufdecken(): void {
+    sende({ typ: 'trumpf_aufdecken' })
+  },
+
+  spritzenMachen(): void {
+    sende({ typ: 'spritzen_machen' })
+  },
+
+  spritzenPassen(): void {
+    sende({ typ: 'spritzen_passen' })
+  },
+
+  karteSpielen(karte: Karte): void {
+    sende({ typ: 'karte_spielen_vierer', karte })
+  },
+
+  melden(farbe: Farbe): void {
+    sende({ typ: 'melden', farbe })
+  },
+
+  letztesErgebnisQuittieren(): void {
+    setzeZustand({ letztesErgebnis: null, bummerlErgebnis: null })
+  },
+
+  trennen(): void {
+    socket?.close()
+    socket = null
+    setzeZustand({
+      status: 'getrennt',
+      sicht: null,
+      letztesErgebnis: null,
+      bummerlErgebnis: null,
+      fehler: null,
+      verknuepftesSpielId: null,
+    })
+  },
+}

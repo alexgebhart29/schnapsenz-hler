@@ -30,6 +30,23 @@ import {
   type TischStart,
 } from './tisch.js'
 import type { SpielerIndex } from './spielRegeln.js'
+import {
+  entferneVerbindungVierer,
+  erstelleTischVierer,
+  raeumeTischeVierAuf,
+  sendeZustandAnAlleVierer,
+  tritteBeiVierer,
+  ziehAnsagen,
+  ziehKarteAusVierer,
+  ziehMeldenVierer,
+  ziehPassen,
+  ziehSpritzen,
+  ziehSpritzenPassen,
+  ziehTrumpfAufdecken,
+  ziehTrumpfWaehlen,
+  type TischVierer,
+} from './vierer/tischVierer.js'
+import type { Ansage, SitzIndex } from './vierer/spielRegelnVierer.js'
 
 function istKarte(wert: unknown): wert is Karte {
   return (
@@ -43,6 +60,9 @@ function istKarte(wert: unknown): wert is Karte {
 const GUELTIGE_FARBEN: Farbe[] = ['kreuz', 'pik', 'herz', 'karo']
 const istFarbe = (wert: unknown): wert is Farbe => GUELTIGE_FARBEN.includes(wert as Farbe)
 
+const GUELTIGE_ANSAGEN: Ansage[] = ['bettler', 'schnapser', 'gang', 'zehnerGang', 'bauernschnapser']
+const istAnsage = (wert: unknown): wert is Ansage => GUELTIGE_ANSAGEN.includes(wert as Ansage)
+
 /** Zwei-Zahlen-Tupel für einen übernommenen Bummerl-Stand beim Fortsetzen eines analogen Spiels. */
 function leseTischStart(wert: unknown): TischStart | undefined {
   if (typeof wert !== 'object' || wert === null) return undefined
@@ -53,8 +73,11 @@ function leseTischStart(wert: unknown): TischStart | undefined {
   return { bummerlPunkte, bummerl }
 }
 
-/** Ein Verbindungszustand: welcher Tisch, welcher Platz (0/1) gehört zu diesem Socket. */
-type VerbindungsZustand = { tisch: Tisch; meinIndex: SpielerIndex } | null
+/** Ein Verbindungszustand: welcher Tisch (Zweier oder Vierer), welcher Platz gehört zu diesem Socket. */
+type VerbindungsZustand =
+  | { art: 'zweier'; tisch: Tisch; meinIndex: SpielerIndex }
+  | { art: 'vierer'; tisch: TischVierer; meinIndex: SitzIndex }
+  | null
 
 function authentifiziere(anfrage: IncomingMessage): Teilnehmer | null {
   const token = leseCookie(anfrage.headers.cookie, config.cookieName)
@@ -75,7 +98,7 @@ function verarbeiteNachricht(
 
   if (nachricht.typ === 'tisch_erstellen') {
     const tisch = erstelleTisch(teilnehmer, senden, leseTischStart(nachricht.start))
-    zustand.wert = { tisch, meinIndex: 0 }
+    zustand.wert = { art: 'zweier', tisch, meinIndex: 0 }
     senden({ typ: 'tisch_erstellt' })
     sendeZustandAnAlle(tisch)
     return
@@ -88,8 +111,29 @@ function verarbeiteNachricht(
       senden({ typ: 'fehler', text: ergebnis.fehler })
       return
     }
-    zustand.wert = { tisch: ergebnis.tisch, meinIndex: ergebnis.meinIndex }
+    zustand.wert = { art: 'zweier', tisch: ergebnis.tisch, meinIndex: ergebnis.meinIndex }
     sendeZustandAnAlle(ergebnis.tisch)
+    return
+  }
+
+  if (nachricht.typ === 'tisch_erstellen_vierer') {
+    const bettlerErlaubt = nachricht.bettlerErlaubt === true
+    const tisch = erstelleTischVierer(teilnehmer, senden, bettlerErlaubt)
+    zustand.wert = { art: 'vierer', tisch, meinIndex: 0 }
+    senden({ typ: 'tisch_erstellt' })
+    sendeZustandAnAlleVierer(tisch)
+    return
+  }
+
+  if (nachricht.typ === 'tisch_beitreten_vierer') {
+    const kennung = typeof nachricht.tisch === 'string' ? nachricht.tisch : ''
+    const ergebnis = tritteBeiVierer(kennung, teilnehmer, senden)
+    if (!ergebnis.ok) {
+      senden({ typ: 'fehler', text: ergebnis.fehler })
+      return
+    }
+    zustand.wert = { art: 'vierer', tisch: ergebnis.tisch, meinIndex: ergebnis.meinIndex }
+    sendeZustandAnAlleVierer(ergebnis.tisch)
     return
   }
 
@@ -98,32 +142,81 @@ function verarbeiteNachricht(
     senden({ typ: 'fehler', text: 'noch keinem Tisch beigetreten' })
     return
   }
-  const { tisch, meinIndex } = laufend
 
   let fehlerText: string | null = null
-  switch (nachricht.typ) {
-    case 'karte_spielen':
-      if (!istKarte(nachricht.karte)) {
-        fehlerText = 'ungültige Karte'
+
+  if (laufend.art === 'zweier') {
+    const { tisch, meinIndex } = laufend
+    switch (nachricht.typ) {
+      case 'karte_spielen':
+        if (!istKarte(nachricht.karte)) {
+          fehlerText = 'ungültige Karte'
+          break
+        }
+        fehlerText = ziehKarteAus(tisch, meinIndex, nachricht.karte)
         break
-      }
-      fehlerText = ziehKarteAus(tisch, meinIndex, nachricht.karte)
-      break
-    case 'stock_zudrehen':
-      fehlerText = ziehZudrehen(tisch, meinIndex)
-      break
-    case 'bube_tauschen':
-      fehlerText = ziehBubeTauschen(tisch, meinIndex)
-      break
-    case 'melden':
-      if (!istFarbe(nachricht.farbe)) {
-        fehlerText = 'ungültige Farbe'
+      case 'stock_zudrehen':
+        fehlerText = ziehZudrehen(tisch, meinIndex)
         break
-      }
-      fehlerText = ziehMelden(tisch, meinIndex, nachricht.farbe)
-      break
-    default:
-      fehlerText = 'unbekannter Nachrichtentyp'
+      case 'bube_tauschen':
+        fehlerText = ziehBubeTauschen(tisch, meinIndex)
+        break
+      case 'melden':
+        if (!istFarbe(nachricht.farbe)) {
+          fehlerText = 'ungültige Farbe'
+          break
+        }
+        fehlerText = ziehMelden(tisch, meinIndex, nachricht.farbe)
+        break
+      default:
+        fehlerText = 'unbekannter Nachrichtentyp'
+    }
+  } else {
+    const { tisch, meinIndex } = laufend
+    switch (nachricht.typ) {
+      case 'ansage_machen':
+        if (!istAnsage(nachricht.ansage)) {
+          fehlerText = 'ungültige Ansage'
+          break
+        }
+        fehlerText = ziehAnsagen(tisch, meinIndex, nachricht.ansage)
+        break
+      case 'ansage_passen':
+        fehlerText = ziehPassen(tisch, meinIndex)
+        break
+      case 'trumpf_waehlen':
+        if (!istFarbe(nachricht.farbe)) {
+          fehlerText = 'ungültige Farbe'
+          break
+        }
+        fehlerText = ziehTrumpfWaehlen(tisch, meinIndex, nachricht.farbe)
+        break
+      case 'trumpf_aufdecken':
+        fehlerText = ziehTrumpfAufdecken(tisch, meinIndex)
+        break
+      case 'spritzen_machen':
+        fehlerText = ziehSpritzen(tisch, meinIndex)
+        break
+      case 'spritzen_passen':
+        fehlerText = ziehSpritzenPassen(tisch, meinIndex)
+        break
+      case 'karte_spielen_vierer':
+        if (!istKarte(nachricht.karte)) {
+          fehlerText = 'ungültige Karte'
+          break
+        }
+        fehlerText = ziehKarteAusVierer(tisch, meinIndex, nachricht.karte)
+        break
+      case 'melden':
+        if (!istFarbe(nachricht.farbe)) {
+          fehlerText = 'ungültige Farbe'
+          break
+        }
+        fehlerText = ziehMeldenVierer(tisch, meinIndex, nachricht.farbe)
+        break
+      default:
+        fehlerText = 'unbekannter Nachrichtentyp'
+    }
   }
 
   if (fehlerText) senden({ typ: 'fehler', text: fehlerText })
@@ -160,12 +253,17 @@ export function registriereOnlineWebsocket(server: Server): void {
     })
 
     ws.on('close', () => {
-      if (zustand.wert) entferneVerbindung(zustand.wert.tisch, zustand.wert.meinIndex)
+      if (!zustand.wert) return
+      if (zustand.wert.art === 'zweier') entferneVerbindung(zustand.wert.tisch, zustand.wert.meinIndex)
+      else entferneVerbindungVierer(zustand.wert.tisch, zustand.wert.meinIndex)
     })
   })
 
   // Häufiger als der (längere) Tisch-Timeout, damit auch der kurze Timeout
   // für nie beigetretene Tische (siehe UNGENUTZTER_TISCH_TIMEOUT_MS) zeitnah greift.
   const AUFRAEUM_INTERVALL_MS = 60 * 1000
-  setInterval(() => raeumeTischeAuf(), AUFRAEUM_INTERVALL_MS).unref()
+  setInterval(() => {
+    raeumeTischeAuf()
+    raeumeTischeVierAuf()
+  }, AUFRAEUM_INTERVALL_MS).unref()
 }
