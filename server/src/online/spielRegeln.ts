@@ -207,10 +207,12 @@ function pruefeSpielende(zustand: PartieZustand): PartieZustand {
     return beende(zustand, spieler, tarif)
   }
 
-  // Talon und beide Hände leer, niemand hat 66 erreicht.
-  const talonLeer = zustand.talon.length === 0 && zustand.trumpfGenommen
+  // Keine Karten mehr nachziehbar (Talon+Trumpf natürlich aufgebraucht ODER
+  // zugedreht – danach wird ja gar nicht mehr gezogen, siehe istKartenzwang)
+  // und beide Hände leer, niemand hat 66 erreicht.
+  const keineKartenMehr = istKartenzwang(zustand)
   const haendeLeer = zustand.haende[0].length === 0 && zustand.haende[1].length === 0
-  if (talonLeer && haendeLeer) {
+  if (keineKartenMehr && haendeLeer) {
     if (zustand.geschlossenVon !== null) {
       // Zudreher hat die 66 nicht geschafft: Gegner gewinnt, mindestens 2 Punkte.
       const gewinner = gegner(zustand.geschlossenVon)

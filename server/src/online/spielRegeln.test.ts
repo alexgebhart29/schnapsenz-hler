@@ -270,6 +270,33 @@ describe('Zudrehen', () => {
     // Ohne Zudrehen wäre der Verlierer (0) bei ≥33 Augen nur 1 Punkt wert.
     expect(ergebnis.wert.spielpunkte).toBe(2)
   })
+
+  it('beendet die Partie auch, wenn beim Zudrehen noch ungenutzte Karten im Talon lagen', () => {
+    // Wurde direkt nach dem Austeilen zugedreht (Talon noch nicht angerührt),
+    // bleibt der Talon für den Rest der Partie unverändert gefüllt – die
+    // Erkennung "alle Karten verbraucht" darf sich daher nicht auf den Talon
+    // stützen, sondern muss wie istKartenzwang() den Zudreh-Fall einschließen.
+    let z = zustand({
+      haende: [[k('pik', 'U')], [k('karo', 'U')]],
+      talon: [k('kreuz', '10')],
+      trumpfGenommen: false,
+      amZug: 0,
+    })
+    const zu = zudrehen(z, 0)
+    if (!zu.ok) throw new Error(zu.fehler)
+    z = zu.wert
+
+    let ergebnis = spieleKarte(z, 0, k('pik', 'U'))
+    if (!ergebnis.ok) throw new Error(ergebnis.fehler)
+    ergebnis = spieleKarte(ergebnis.wert, 1, k('karo', 'U'))
+    if (!ergebnis.ok) throw new Error(ergebnis.fehler)
+
+    // Beide Hände sind jetzt leer, keiner hat 66 erreicht – der Zudreher (0)
+    // hat sein Ziel verfehlt, Gegner (1) gewinnt mit mindestens 2 Punkten.
+    expect(ergebnis.wert.status).toBe('beendet')
+    expect(ergebnis.wert.gewinner).toBe(1)
+    expect(ergebnis.wert.spielpunkte).toBe(2)
+  })
 })
 
 describe('Bube tauschen', () => {
