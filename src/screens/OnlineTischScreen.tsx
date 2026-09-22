@@ -104,6 +104,7 @@ function TischAnsicht({
   const ichBinAmZug = sicht.amZug === sicht.meinIndex
   const meinName = sicht.spielerNamen[sicht.meinIndex]
   const gegnerName = sicht.spielerNamen[1 - sicht.meinIndex]
+  const eigeneStiche = sicht.stichVerlauf.filter((eintrag) => eintrag.sieger === sicht.meinIndex)
   const meineBummerl = sicht.bummerl[sicht.meinIndex]
   const gegnerBummerl = sicht.bummerl[1 - sicht.meinIndex]
   const meineBummerlPunkte = sicht.bummerlPunkte[sicht.meinIndex]
@@ -161,13 +162,13 @@ function TischAnsicht({
             design={kartendesign}
             beschriftung={`Erster Stich von ${gegnerName}`}
           />
-          {sicht.stichVerlauf.length > 0 && (
+          {eigeneStiche.length > 0 && (
             <button
               type="button"
               className="btn btn--geist btn--klein"
               onClick={() => setZeigeVerlauf(true)}
             >
-              Alle Stiche ({sicht.stichVerlauf.length})
+              Alle Stiche ({eigeneStiche.length})
             </button>
           )}
         </div>
@@ -297,7 +298,7 @@ function TischAnsicht({
 
       {zeigeVerlauf && (
         <Dialog
-          titel="Alle Stiche dieser Partie"
+          titel="Deine Stiche dieser Partie"
           onAbbrechen={() => setZeigeVerlauf(false)}
           aktionen={
             <button type="button" className="btn btn--primaer" onClick={() => setZeigeVerlauf(false)}>
@@ -306,12 +307,9 @@ function TischAnsicht({
           }
         >
           <div className="stapel stapel--eng" style={{ maxHeight: '50vh', overflowY: 'auto' }}>
-            {[...sicht.stichVerlauf].reverse().map((eintrag) => (
+            {[...eigeneStiche].reverse().map((eintrag) => (
               <div className="reihe reihe--verteilt klein" key={eintrag.nummer}>
                 <span className="muted">#{eintrag.nummer}</span>
-                <span className="wachsen" style={{ fontWeight: 600 }}>
-                  {eintrag.sieger === sicht.meinIndex ? meinName : gegnerName}
-                </span>
                 <div className="reihe" style={{ gap: 4 }}>
                   {eintrag.karten.map((karte, kartenIndex) => (
                     <SpielKarte key={kartenIndex} karte={karte} design={kartendesign} klein />
