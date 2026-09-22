@@ -6,6 +6,8 @@ export type Benutzer = {
   id: string
   benutzername: string
   istAdmin: boolean
+  /** Nur dann gibt es ein Passwort und eine Anmeldung; sonst ist das Konto nur ein auswählbarer Spielername. */
+  darfAnmelden: boolean
   erstelltAm: number
 }
 
@@ -14,6 +16,7 @@ type BenutzerZeile = {
   benutzername: string
   passwort_hash: string
   ist_admin: number
+  darf_anmelden: number
   erstellt_am: number
   geaendert_am: number
 }
@@ -22,6 +25,7 @@ const zuBenutzer = (zeile: BenutzerZeile): Benutzer => ({
   id: zeile.id,
   benutzername: zeile.benutzername,
   istAdmin: zeile.ist_admin === 1,
+  darfAnmelden: zeile.darf_anmelden === 1,
   erstelltAm: zeile.erstellt_am,
 })
 
@@ -51,26 +55,41 @@ export function findeBenutzerName(benutzername: string): BenutzerZeile | null {
   return zeile ?? null
 }
 
+/**
+ * Legt ein Konto an. Mit `darfAnmelden = false` entsteht ein reiner
+ * Spielername: kein Passwort, keine Anmeldung, nie Administrator – er taucht
+ * nur in der Spieler-Auswahl der anderen auf.
+ */
 export async function legeBenutzerAn(
   benutzername: string,
   passwort: string,
   istAdmin: boolean,
+  darfAnmelden: boolean = true,
 ): Promise<Benutzer> {
   const name = benutzername.trim()
   const jetzt = Date.now()
   const benutzer: Benutzer = {
     id: randomUUID(),
     benutzername: name,
-    istAdmin,
+    istAdmin: darfAnmelden && istAdmin,
+    darfAnmelden,
     erstelltAm: jetzt,
   }
 
   db()
     .prepare(
-      `INSERT INTO benutzer (id, benutzername, passwort_hash, ist_admin, erstellt_am, geaendert_am)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO benutzer (id, benutzername, passwort_hash, ist_admin, darf_anmelden, erstellt_am, geaendert_am)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(benutzer.id, name, await hashePasswort(passwort), istAdmin ? 1 : 0, jetzt, jetzt)
+    .run(
+      benutzer.id,
+      name,
+      darfAnmelden ? await hashePasswort(passwort) : '',
+      benutzer.istAdmin ? 1 : 0,
+      darfAnmelden ? 1 : 0,
+      jetzt,
+      jetzt,
+    )
 
   return benutzer
 }
@@ -91,7 +110,7 @@ export async function pruefeAnmeldung(
   passwort: string,
 ): Promise<Benutzer | null> {
   const zeile = findeBenutzerName(benutzername)
-  if (!zeile) {
+  if (!zeile || zeile.darf_anmelden !== 1) {
     // Gleich viel Rechenzeit wie ein echter Versuch, damit Benutzernamen nicht
     // über die Antwortzeit erratbar werden.
     await pruefePasswort(passwort, `scrypt$${'a'.repeat(24)}$${'b'.repeat(88)}`)

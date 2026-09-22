@@ -1,20 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ClaudeCodeEditorTabs">
-    <option name="activeSessionId" value="45363e64-00cd-4937-8898-73a671fdc7e0" />
+    <option name="activeSessionId" value="f14a8f87-2b29-4432-8b1c-817e847b102d" />
     <option name="openSessionIds">
       <list>
         <option value="45363e64-00cd-4937-8898-73a671fdc7e0" />
+        <option value="f14a8f87-2b29-4432-8b1c-817e847b102d" />
       </list>
     </option>
     <option name="sessionPaths">
       <map>
         <entry key="45363e64-00cd-4937-8898-73a671fdc7e0" value="/sessions/d8139d55-a0f3-4b1b-b195-3420463aafb1" />
+        <entry key="f14a8f87-2b29-4432-8b1c-817e847b102d" value="/sessions/d8139d55-a0f3-4b1b-b195-3420463aafb1" />
       </map>
     </option>
     <option name="sessionTitles">
       <map>
         <entry key="45363e64-00cd-4937-8898-73a671fdc7e0" value="Warnung: Unberechtigten Zugriff auf Anmeldeinforma" />
+        <entry key="f14a8f87-2b29-4432-8b1c-817e847b102d" value="Warnung: Unberechtigten Zugriff auf Anmeldeinforma" />
       </map>
     </option>
   </component>

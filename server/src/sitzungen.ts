@@ -32,7 +32,8 @@ export function findeSitzungsBenutzer(token: string): Benutzer | null {
     beendeSitzung(token)
     return null
   }
-  return findeBenutzer(zeile.benutzer_id)
+  const benutzer = findeBenutzer(zeile.benutzer_id)
+  return benutzer?.darfAnmelden ? benutzer : null
 }
 
 export function beendeSitzung(token: string): void {

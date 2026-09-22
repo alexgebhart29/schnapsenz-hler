@@ -1,6 +1,7 @@
-import { useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { formatRelativ } from '../format'
 import { navigiere } from '../navigation'
+import { api } from '../core/api'
 import {
   endstandText,
   MAX_STARTWERT,
@@ -9,6 +10,7 @@ import {
   parteiName,
 } from '../core/schnapsen'
 import { actions, namensListe } from '../core/store'
+import { useSitzung } from '../core/session'
 import type { AppState, Modus, Spiel } from '../core/types'
 import { SyncAnzeige } from '../components/SyncAnzeige'
 
@@ -21,11 +23,35 @@ const FELDER: Record<Modus, string[]> = {
 }
 
 export function StartScreen({ state }: Props) {
+  const sitzung = useSitzung()
   const [modus, setModus] = useState<Modus>('zweier')
   const [namen, setNamen] = useState<string[]>(['', '', '', ''])
   const [startwert, setStartwert] = useState<number>(state.settings.startwert)
   const [fehler, setFehler] = useState<string | null>(null)
   const listeId = useId()
+  // Angemeldet: Spieler werden ausschließlich aus den Benutzernamen gewählt,
+  // damit die Zählung immer demselben Konto folgt. Ohne Server (lokal) bleibt
+  // die freie Namenseingabe.
+  const [benutzerNamen, setBenutzerNamen] = useState<string[] | null>(null)
+
+  useEffect(() => {
+    if (sitzung.status !== 'angemeldet') {
+      setBenutzerNamen(null)
+      return
+    }
+    let aktiv = true
+    api
+      .benutzerNamen()
+      .then((antwort) => {
+        if (aktiv) setBenutzerNamen(antwort.namen)
+      })
+      .catch(() => {
+        if (aktiv) setBenutzerNamen(null)
+      })
+    return () => {
+      aktiv = false
+    }
+  }, [sitzung.status])
 
   const gemerkteNamen = useMemo(() => namensListe(state.namen), [state.namen])
   const anzahlFelder = modus === 'zweier' ? 2 : 4
@@ -141,6 +167,26 @@ export function StartScreen({ state }: Props) {
             <label className="feld__label" htmlFor={`spieler-${index}`}>
               {beschriftung}
             </label>
+            {benutzerNamen ? (
+              <select
+                id={`spieler-${index}`}
+                className="eingabe"
+                value={namen[index] ?? ''}
+                onChange={(event) => setName(index, event.target.value)}
+              >
+                <option value="">Spieler wählen …</option>
+                {benutzerNamen.map((name) => (
+                  <option
+                    key={name}
+                    value={name}
+                    disabled={namen.slice(0, anzahlFelder).some((n, i) => i !== index && n === name)}
+                  >
+                    {name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+            <>
             <input
               id={`spieler-${index}`}
               className="eingabe"
@@ -169,6 +215,8 @@ export function StartScreen({ state }: Props) {
                   </button>
                 ))}
               </div>
+            )}
+            </>
             )}
           </div>
         ))}
@@ -225,6 +273,16 @@ export function StartScreen({ state }: Props) {
             ))}
           </div>
         </section>
+      )}
+
+      {sitzung.status === 'angemeldet' && (
+        <button
+          type="button"
+          className="btn btn--block"
+          onClick={() => navigiere({ name: 'online-lobby' })}
+        >
+          🌐 Online spielen
+        </button>
       )}
 
       <nav className="nav-gitter">

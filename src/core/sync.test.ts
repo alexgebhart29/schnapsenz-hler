@@ -59,6 +59,7 @@ describe('sammleAenderungen', () => {
         startwert: 9,
         startwertVierer: 24,
         theme: 'system',
+        kartendesign: 'franzoesisch',
         bettlerAktiv: false,
         schneiderAktiv: false,
       },

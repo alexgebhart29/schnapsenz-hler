@@ -61,8 +61,16 @@ export const api = {
 
   benutzerListe: () => anfrage<{ benutzer: Benutzer[] }>('/benutzer'),
 
-  benutzerAnlegen: (benutzername: string, passwort: string, istAdmin: boolean) =>
-    anfrage<{ benutzer: Benutzer }>('/benutzer', 'POST', { benutzername, passwort, istAdmin }),
+  benutzerAnlegen: (benutzername: string, passwort: string, istAdmin: boolean, darfAnmelden: boolean) =>
+    anfrage<{ benutzer: Benutzer }>('/benutzer', 'POST', {
+      benutzername,
+      passwort,
+      istAdmin,
+      darfAnmelden,
+    }),
+
+  /** Nur die Benutzernamen – für die Spieler-Dropdowns. */
+  benutzerNamen: () => anfrage<{ namen: string[] }>('/benutzer/namen'),
 
   benutzerPasswort: (id: string, passwort: string) =>
     anfrage<{ ok: true }>(`/benutzer/${encodeURIComponent(id)}/passwort`, 'POST', { passwort }),
@@ -72,4 +80,8 @@ export const api = {
 
   sync: (seit: number, aenderungen: SyncPaket) =>
     anfrage<SyncAntwort>('/sync', 'POST', { seit, aenderungen }),
+
+  /** Offene Online-Tische (warten auf einen zweiten Spieler) – nur für angemeldete Nutzer. */
+  offeneTische: () =>
+    anfrage<{ tische: { id: string; ersteller: string }[] }>('/online/tische'),
 }

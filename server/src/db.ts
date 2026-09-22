@@ -77,6 +77,15 @@ CREATE TABLE IF NOT EXISTS einstellungen (
 CREATE INDEX IF NOT EXISTS idx_einstellungen_folge ON einstellungen(folge);
 `
 
+/** Ergänzt Spalten, die in älteren Datenbanken noch fehlen. */
+function migriere(db: DatabaseSync): void {
+  const spalten = db.prepare('PRAGMA table_info(benutzer)').all() as { name: string }[]
+  if (!spalten.some((spalte) => spalte.name === 'darf_anmelden')) {
+    // Bestehende Konten sind Anmelde-Konten; reine Spielernamen kommen neu dazu.
+    db.exec('ALTER TABLE benutzer ADD COLUMN darf_anmelden INTEGER NOT NULL DEFAULT 1')
+  }
+}
+
 export function oeffneDatenbank(datei: string = config.dbDatei): DatabaseSync {
   if (datei !== ':memory:') mkdirSync(dirname(datei), { recursive: true })
 
@@ -87,6 +96,7 @@ export function oeffneDatenbank(datei: string = config.dbDatei): DatabaseSync {
   db.exec('PRAGMA foreign_keys = ON')
   db.exec('PRAGMA busy_timeout = 5000')
   db.exec(SCHEMA)
+  migriere(db)
   return db
 }
 

@@ -16,6 +16,7 @@ export function AdminScreen() {
   const [name, setName] = useState('')
   const [passwort, setPasswort] = useState('')
   const [istAdmin, setIstAdmin] = useState(false)
+  const [darfAnmelden, setDarfAnmelden] = useState(false)
 
   const [loeschen, setLoeschen] = useState<Benutzer | null>(null)
   const [zuruecksetzen, setZuruecksetzen] = useState<Benutzer | null>(null)
@@ -48,10 +49,11 @@ export function AdminScreen() {
 
   const anlegen = async () => {
     try {
-      await api.benutzerAnlegen(name.trim(), passwort, istAdmin)
+      await api.benutzerAnlegen(name.trim(), passwort, istAdmin, darfAnmelden)
       setName('')
       setPasswort('')
       setIstAdmin(false)
+      setDarfAnmelden(false)
       setFehler(null)
       await laden_()
     } catch (ausnahme) {
@@ -78,17 +80,20 @@ export function AdminScreen() {
                   </div>
                 </div>
                 {eintrag.istAdmin && <span className="abzeichen abzeichen--rang">Admin</span>}
-                <button
-                  type="button"
-                  className="btn btn--geist btn--klein"
-                  onClick={() => {
-                    setNeuesPasswort('')
-                    setZuruecksetzen(eintrag)
-                  }}
-                  aria-label={`Passwort von ${eintrag.benutzername} ändern`}
-                >
-                  🔑
-                </button>
+                {!eintrag.darfAnmelden && <span className="abzeichen">nur Spielername</span>}
+                {eintrag.darfAnmelden && (
+                  <button
+                    type="button"
+                    className="btn btn--geist btn--klein"
+                    onClick={() => {
+                      setNeuesPasswort('')
+                      setZuruecksetzen(eintrag)
+                    }}
+                    aria-label={`Passwort von ${eintrag.benutzername} ändern`}
+                  >
+                    🔑
+                  </button>
+                )}
                 {eintrag.id !== sitzung.benutzer?.id && (
                   <button
                     type="button"
@@ -119,32 +124,52 @@ export function AdminScreen() {
             onChange={(event) => setName(event.target.value)}
           />
         </div>
-        <div className="feld">
-          <label className="feld__label" htmlFor="neues-passwort">
-            Passwort (mindestens 8 Zeichen)
-          </label>
-          <input
-            id="neues-passwort"
-            className="eingabe"
-            type="password"
-            value={passwort}
-            autoComplete="new-password"
-            onChange={(event) => setPasswort(event.target.value)}
-          />
-        </div>
         <label className="reihe">
           <input
             type="checkbox"
-            checked={istAdmin}
-            onChange={(event) => setIstAdmin(event.target.checked)}
+            checked={darfAnmelden}
+            onChange={(event) => {
+              setDarfAnmelden(event.target.checked)
+              if (!event.target.checked) setIstAdmin(false)
+            }}
           />
-          <span className="klein">Darf Benutzer verwalten (Administrator)</span>
+          <span className="klein">Darf anmelden (eigenes Konto mit Passwort)</span>
         </label>
+        {!darfAnmelden && (
+          <p className="hinweis" style={{ margin: 0 }}>
+            Ohne Häkchen ist das nur ein Spielername zur Auswahl – ohne Passwort, ohne Anmeldung.
+          </p>
+        )}
+        {darfAnmelden && (
+          <>
+            <div className="feld">
+              <label className="feld__label" htmlFor="neues-passwort">
+                Passwort (mindestens 8 Zeichen)
+              </label>
+              <input
+                id="neues-passwort"
+                className="eingabe"
+                type="password"
+                value={passwort}
+                autoComplete="new-password"
+                onChange={(event) => setPasswort(event.target.value)}
+              />
+            </div>
+            <label className="reihe">
+              <input
+                type="checkbox"
+                checked={istAdmin}
+                onChange={(event) => setIstAdmin(event.target.checked)}
+              />
+              <span className="klein">Darf Benutzer verwalten (Administrator)</span>
+            </label>
+          </>
+        )}
         <button
           type="button"
           className="btn btn--primaer btn--block"
           onClick={() => void anlegen()}
-          disabled={!name.trim() || passwort.length < 8}
+          disabled={!name.trim() || (darfAnmelden && passwort.length < 8)}
         >
           Anlegen
         </button>

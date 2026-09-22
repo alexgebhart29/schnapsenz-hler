@@ -3,6 +3,9 @@ export type SpielerIndex = 0 | 1
 
 export type Theme = 'system' | 'hell' | 'dunkel'
 
+/** Anzeige-Blatt für Online-Spielkarten (Spielregeln bleiben unabhängig davon). */
+export type Kartendesign = 'franzoesisch' | 'deutsch'
+
 export type Settings = {
   /** Startwert des Countdown-Zählers im Zweier (Standard 7). Wird synchronisiert. */
   startwert: number
@@ -10,6 +13,8 @@ export type Settings = {
   startwertVierer: number
   /** Bleibt geräteabhängig und wird nicht synchronisiert. */
   theme: Theme
+  /** Anzeige-Blatt für Online-Spielkarten. Bleibt geräteabhängig, jeder Nutzer wählt selbst. */
+  kartendesign: Kartendesign
   /** Schaltet die Kategorie „Bettler“ im Vierer frei. Wird synchronisiert. */
   bettlerAktiv: boolean
   /**
@@ -181,5 +186,7 @@ export type Benutzer = {
   id: string
   benutzername: string
   istAdmin: boolean
+  /** Nur dann gibt es ein Passwort und eine Anmeldung; sonst ist das Konto nur ein auswählbarer Spielername. */
+  darfAnmelden: boolean
   erstelltAm: number
 }

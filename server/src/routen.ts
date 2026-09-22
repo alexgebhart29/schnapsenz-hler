@@ -27,6 +27,7 @@ import {
 } from './http.js'
 import { pruefeSyncAnfrage } from './validierung.js'
 import { synchronisiere } from './sync.js'
+import { listeOffeneTische } from './online/tisch.js'
 
 export const routen = Router()
 
@@ -109,6 +110,13 @@ routen.post('/auth/passwort', nurJson, nurAngemeldet, async (req: Request, res: 
   res.json({ ok: true })
 })
 
+// ---------- Benutzernamen (für die Spieler-Auswahl) ----------
+
+/** Nur die Benutzernamen – für die Spieler-Dropdowns, damit die Zählung stets einem Konto folgt. */
+routen.get('/benutzer/namen', nurAngemeldet, (_req: Request, res: Response) => {
+  res.json({ namen: alleBenutzer().map((benutzer) => benutzer.benutzername) })
+})
+
 // ---------- Benutzerverwaltung (nur Admin) ----------
 
 routen.get('/benutzer', nurAdmin, (_req: Request, res: Response) => {
@@ -119,13 +127,15 @@ routen.post('/benutzer', nurJson, nurAdmin, async (req: Request, res: Response) 
   const benutzername = text(req.body?.benutzername).trim()
   const passwort = text(req.body?.passwort)
   const istAdmin = req.body?.istAdmin === true
+  // Ohne ausdrückliches false ist es ein Anmelde-Konto (bisheriges Verhalten).
+  const darfAnmelden = req.body?.darfAnmelden !== false
 
   const nameFehler = benutzernameFehler(benutzername)
   if (nameFehler) {
     res.status(400).json({ fehler: nameFehler })
     return
   }
-  const pwFehler = passwortFehler(passwort)
+  const pwFehler = darfAnmelden ? passwortFehler(passwort) : null
   if (pwFehler) {
     res.status(400).json({ fehler: pwFehler })
     return
@@ -135,7 +145,7 @@ routen.post('/benutzer', nurJson, nurAdmin, async (req: Request, res: Response) 
     return
   }
 
-  res.status(201).json({ benutzer: await legeBenutzerAn(benutzername, passwort, istAdmin) })
+  res.status(201).json({ benutzer: await legeBenutzerAn(benutzername, passwort, istAdmin, darfAnmelden) })
 })
 
 routen.post('/benutzer/:id/passwort', nurJson, nurAdmin, async (req: Request, res: Response) => {
@@ -148,6 +158,10 @@ routen.post('/benutzer/:id/passwort', nurJson, nurAdmin, async (req: Request, re
   const benutzer = findeBenutzer(String(req.params.id))
   if (!benutzer) {
     res.status(404).json({ fehler: 'Benutzer nicht gefunden' })
+    return
+  }
+  if (!benutzer.darfAnmelden) {
+    res.status(400).json({ fehler: 'Dieser Spielername hat kein Passwort (darf sich nicht anmelden)' })
     return
   }
 
@@ -185,3 +199,11 @@ routen.post('/sync', nurJson, nurAngemeldet, (req: Request, res: Response) => {
   }
   res.json(synchronisiere(gepruft.anfrage))
 })
+
+// ---------- Online-Spielmodus ----------
+
+/** Offene Tische (warten auf einen zweiten Spieler) – für angemeldete Nutzer sichtbar. */
+routen.get('/online/tische', nurAngemeldet, (_req: Request, res: Response) => {
+  res.json({ tische: listeOffeneTische() })
+})
+

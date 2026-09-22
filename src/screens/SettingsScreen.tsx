@@ -6,7 +6,7 @@ import { api } from '../core/api'
 import { abmelden, fuehreSyncAus, useSitzung } from '../core/session'
 import { actions, sortierteKategorien } from '../core/store'
 import { MAX_STARTWERT, MIN_STARTWERT } from '../core/schnapsen'
-import type { AppState, Kategorie, Theme } from '../core/types'
+import type { AppState, Kartendesign, Kategorie, Theme } from '../core/types'
 import { Stepper } from './StartScreen'
 import { RankVerwaltung } from './RanksScreen'
 
@@ -18,6 +18,11 @@ const THEMES: { wert: Theme; label: string }[] = [
   { wert: 'system', label: 'System' },
   { wert: 'hell', label: 'Hell' },
   { wert: 'dunkel', label: 'Dunkel' },
+]
+
+const KARTENDESIGNS: { wert: Kartendesign; label: string }[] = [
+  { wert: 'franzoesisch', label: 'Französisch' },
+  { wert: 'deutsch', label: 'Deutsch' },
 ]
 
 export function SettingsScreen({ state }: Props) {
@@ -89,6 +94,23 @@ export function SettingsScreen({ state }: Props) {
               onClick={() => actions.setSettings({ theme: theme.wert })}
             >
               {theme.label}
+            </button>
+          ))}
+        </div>
+        <hr className="trenner" />
+        <div className="hinweis" style={{ margin: 0 }}>
+          Kartenblatt (nur für dich, unabhängig vom Gegner)
+        </div>
+        <div className="segmente">
+          {KARTENDESIGNS.map((design) => (
+            <button
+              type="button"
+              key={design.wert}
+              className="segmente__knopf"
+              aria-pressed={state.settings.kartendesign === design.wert}
+              onClick={() => actions.setSettings({ kartendesign: design.wert })}
+            >
+              {design.label}
             </button>
           ))}
         </div>

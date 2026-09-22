@@ -2,6 +2,7 @@ import { erstelleApp } from './app.js'
 import { config } from './config.js'
 import { anzahlBenutzer, legeBenutzerAn } from './benutzer.js'
 import { db } from './db.js'
+import { registriereOnlineWebsocket } from './online/ws.js'
 import { zufallsPasswort } from './passwoerter.js'
 import { raeumeSitzungenAuf } from './sitzungen.js'
 
@@ -35,11 +36,12 @@ async function starte(): Promise<void> {
   raeumeSitzungenAuf()
   setInterval(raeumeSitzungenAuf, 6 * STUNDE_MS).unref()
 
-  erstelleApp().listen(config.port, () => {
+  const server = erstelleApp().listen(config.port, () => {
     console.log(`[start] Schnapsen-Server läuft auf Port ${config.port}`)
     console.log(`[start] Datenbank: ${config.dbDatei}`)
     console.log(`[start] Cookie secure: ${config.cookieSicher}`)
   })
+  registriereOnlineWebsocket(server)
 }
 
 starte().catch((fehler) => {

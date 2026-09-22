@@ -9,6 +9,8 @@ export type Route =
   | { name: 'statistik' }
   | { name: 'anmelden' }
   | { name: 'benutzer' }
+  | { name: 'online-lobby' }
+  | { name: 'online-tisch' }
 
 export function routeZuHash(route: Route): string {
   switch (route.name) {
@@ -26,6 +28,10 @@ export function routeZuHash(route: Route): string {
       return '#/anmelden'
     case 'benutzer':
       return '#/benutzer'
+    case 'online-lobby':
+      return '#/online'
+    case 'online-tisch':
+      return '#/online/tisch'
     case 'start':
       return '#/'
   }
@@ -50,6 +56,8 @@ export function hashZuRoute(hash: string): Route {
       return { name: 'anmelden' }
     case 'benutzer':
       return { name: 'benutzer' }
+    case 'online':
+      return zweites === 'tisch' ? { name: 'online-tisch' } : { name: 'online-lobby' }
     default:
       return { name: 'start' }
   }
@@ -67,6 +75,8 @@ const ELTERN_ROUTE: Partial<Record<Route['name'], Route>> = {
   historie: { name: 'start' },
   statistik: { name: 'start' },
   benutzer: { name: 'einstellungen' },
+  'online-lobby': { name: 'start' },
+  'online-tisch': { name: 'online-lobby' },
 }
 
 export function elternRoute(route: Route): Route {

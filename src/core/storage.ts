@@ -45,6 +45,7 @@ export function initialState(): AppState {
       startwert: DEFAULT_STARTWERT,
       startwertVierer: DEFAULT_STARTWERT_VIERER,
       theme: 'system',
+      kartendesign: 'franzoesisch',
       bettlerAktiv: false,
       schneiderAktiv: false,
     },
@@ -83,6 +84,7 @@ function parseSettings(wert: unknown): Settings {
     startwertVierer: normalizeStartwert(zahl(roh.startwertVierer, DEFAULT_STARTWERT_VIERER)),
     theme:
       theme === 'hell' || theme === 'dunkel' || theme === 'system' ? (theme as Theme) : 'system',
+    kartendesign: roh.kartendesign === 'deutsch' ? 'deutsch' : 'franzoesisch',
     bettlerAktiv: roh.bettlerAktiv === true,
     schneiderAktiv: roh.schneiderAktiv === true,
   }
