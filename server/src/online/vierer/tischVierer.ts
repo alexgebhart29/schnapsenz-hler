@@ -37,7 +37,8 @@ const BUMMERL_STARTWERT = 24
 
 export type Sender = (nachricht: unknown) => void
 export type Teilnehmer = { id: string; name: string }
-type Spielplatz = { teilnehmer: Teilnehmer; senden: Sender | null }
+/** `beitrittsNummer` ist unabhängig vom Sitzplatz – bestimmt, wer bei Bedarf neuer Gastgeber wird. */
+type Spielplatz = { teilnehmer: Teilnehmer; senden: Sender | null; beitrittsNummer: number }
 
 export type TischVierer = {
   code: string
@@ -48,6 +49,7 @@ export type TischVierer = {
   bummerlPunkte: [number, number]
   bummerl: [number, number]
   letzteAktivitaetAm: number
+  naechsteBeitrittsNummer: number
 }
 
 const tische = new Map<string, TischVierer>()
@@ -75,13 +77,14 @@ export function erstelleTischVierer(teilnehmer: Teilnehmer, senden: Sender, bett
   const code = erzeugeCode()
   const tisch: TischVierer = {
     code,
-    spieler: [{ teilnehmer, senden }, null, null, null],
+    spieler: [{ teilnehmer, senden, beitrittsNummer: 0 }, null, null, null],
     partie: null,
     vorhand: 0,
     bettlerErlaubt,
     bummerlPunkte: [BUMMERL_STARTWERT, BUMMERL_STARTWERT],
     bummerl: [0, 0],
     letzteAktivitaetAm: Date.now(),
+    naechsteBeitrittsNummer: 1,
   }
   tische.set(code, tisch)
   return tisch
@@ -112,16 +115,72 @@ export function tritteBeiVierer(code: string, teilnehmer: Teilnehmer, senden: Se
   const freierPlatz = tisch.spieler.findIndex((platz) => platz === null) as SitzIndex | -1
   if (freierPlatz === -1) return { ok: false, fehler: 'Tisch ist bereits voll' }
 
-  tisch.spieler[freierPlatz] = { teilnehmer, senden }
-  if (tisch.spieler.every((platz) => platz !== null)) {
-    tisch.partie = starteAusteilung(tisch.vorhand, tisch.bettlerErlaubt)
-  }
+  tisch.spieler[freierPlatz] = { teilnehmer, senden, beitrittsNummer: tisch.naechsteBeitrittsNummer }
+  tisch.naechsteBeitrittsNummer += 1
   return { ok: true, tisch, meinIndex: freierPlatz }
+}
+
+/** Ermittelt den aktuellen Sitzplatz eines Kontos – nötig, weil sich der Platz im Warteraum ändern kann. */
+export function findeSitzVierer(tisch: TischVierer, teilnehmerId: string): SitzIndex | null {
+  const index = tisch.spieler.findIndex((platz) => platz?.teilnehmer.id === teilnehmerId)
+  return index === -1 ? null : (index as SitzIndex)
 }
 
 export function entferneVerbindungVierer(tisch: TischVierer, meinIndex: SitzIndex): void {
   const platz = tisch.spieler[meinIndex]
   if (platz) platz.senden = null
+}
+
+/**
+ * Der Gastgeber ist nicht an einen Sitzplatz gebunden, sondern an die Person,
+ * die am längsten dabei ist (kleinste Beitrittsnummer) und noch verbunden
+ * ist. Geht der/die aktuelle Gastgeber:in offline, rückt automatisch die
+ * nächste noch verbundene Person nach (z. B. wer als Zweites beigetreten
+ * ist) – der Warteraum bleibt so nie hängen.
+ */
+function ermittleGastgeber(tisch: TischVierer): SitzIndex | null {
+  let gastgeber: { index: SitzIndex; beitrittsNummer: number } | null = null
+  for (const index of [0, 1, 2, 3] as SitzIndex[]) {
+    const platz = tisch.spieler[index]
+    if (!platz || platz.senden === null) continue
+    if (gastgeber === null || platz.beitrittsNummer < gastgeber.beitrittsNummer) {
+      gastgeber = { index, beitrittsNummer: platz.beitrittsNummer }
+    }
+  }
+  return gastgeber?.index ?? null
+}
+
+/**
+ * Warteraum vor dem eigentlichen Spiel: die 4 Beitretenden können sich frei
+ * auf die 4 Plätze verteilen (Platz 1+3 = Team A, Platz 2+4 = Team B, siehe
+ * spielRegelnVierer.ts → team()) – wie eine Team-Aufstellung, bevor der
+ * Gastgeber das Spiel startet. Die Gastgeber-Rolle wandert mit der Person
+ * mit (nicht mit dem Sitzplatz).
+ */
+export function wechsleSitzVierer(tisch: TischVierer, teilnehmerId: string, zielSitz: SitzIndex): string | null {
+  if (tisch.partie) return 'Das Spiel läuft schon, der Sitzplatz kann nicht mehr gewechselt werden'
+  const meinIndex = findeSitzVierer(tisch, teilnehmerId)
+  if (meinIndex === null) return 'nicht an diesem Tisch'
+  if (meinIndex === zielSitz) return null
+
+  const mein = tisch.spieler[meinIndex]
+  tisch.spieler[meinIndex] = tisch.spieler[zielSitz]
+  tisch.spieler[zielSitz] = mein
+  tisch.letzteAktivitaetAm = Date.now()
+  return null
+}
+
+/** Nur der aktuelle Gastgeber (siehe ermittleGastgeber) darf aus dem Warteraum heraus starten. */
+export function starteSpielVierer(tisch: TischVierer, teilnehmerId: string): string | null {
+  if (tisch.partie) return 'Spiel läuft schon'
+  const meinIndex = findeSitzVierer(tisch, teilnehmerId)
+  if (meinIndex === null) return 'nicht an diesem Tisch'
+  if (!tisch.spieler.every((platz) => platz !== null)) return 'Warte auf weitere Spieler'
+  if (ermittleGastgeber(tisch) !== meinIndex) return 'Nur der Gastgeber kann das Spiel starten'
+
+  tisch.partie = starteAusteilung(tisch.vorhand, tisch.bettlerErlaubt)
+  tisch.letzteAktivitaetAm = Date.now()
+  return null
 }
 
 /** Offene Tische für die Lobby-Liste: noch nicht volle Tische mit mindestens einer aktiven Verbindung. */
@@ -209,6 +268,36 @@ export function sendeZustandAnAlleVierer(tisch: TischVierer): void {
     const platz = tisch.spieler[index]
     const sicht = oeffentlicheSichtVierer(tisch, index)
     if (platz?.senden && sicht) platz.senden({ typ: 'zustand4', sicht })
+  }
+}
+
+export type WarteraumSichtVierer = {
+  meinIndex: SitzIndex
+  plaetze: (string | null)[]
+  /** Wandert automatisch weiter, falls der/die aktuelle Gastgeber:in offline geht (siehe ermittleGastgeber). */
+  binGastgeber: boolean
+  kannStarten: boolean
+}
+
+function warteraumSichtVierer(tisch: TischVierer, meinIndex: SitzIndex): WarteraumSichtVierer {
+  const binGastgeber = ermittleGastgeber(tisch) === meinIndex
+  return {
+    meinIndex,
+    plaetze: tisch.spieler.map((platz) => platz?.teilnehmer.name ?? null),
+    binGastgeber,
+    kannStarten: binGastgeber && tisch.spieler.every((platz) => platz !== null),
+  }
+}
+
+/** Solange die Partie noch nicht gestartet ist, sehen alle den Warteraum statt einer Spiel-Sicht. */
+export function sendeAktuellenZustandAnAlleVierer(tisch: TischVierer): void {
+  if (tisch.partie) {
+    sendeZustandAnAlleVierer(tisch)
+    return
+  }
+  for (const index of [0, 1, 2, 3] as SitzIndex[]) {
+    const platz = tisch.spieler[index]
+    if (platz?.senden) platz.senden({ typ: 'warteraum4', sicht: warteraumSichtVierer(tisch, index) })
   }
 }
 

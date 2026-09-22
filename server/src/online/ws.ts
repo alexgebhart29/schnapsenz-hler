@@ -33,9 +33,12 @@ import type { SpielerIndex } from './spielRegeln.js'
 import {
   entferneVerbindungVierer,
   erstelleTischVierer,
+  findeSitzVierer,
   raeumeTischeVierAuf,
-  sendeZustandAnAlleVierer,
+  sendeAktuellenZustandAnAlleVierer,
+  starteSpielVierer,
   tritteBeiVierer,
+  wechsleSitzVierer,
   ziehAnsagen,
   ziehKarteAusVierer,
   ziehMeldenVierer,
@@ -73,10 +76,15 @@ function leseTischStart(wert: unknown): TischStart | undefined {
   return { bummerlPunkte, bummerl }
 }
 
-/** Ein Verbindungszustand: welcher Tisch (Zweier oder Vierer), welcher Platz gehört zu diesem Socket. */
+/**
+ * Ein Verbindungszustand: welcher Tisch (Zweier oder Vierer) gehört zu
+ * diesem Socket. Beim Vierer wird der Sitzplatz NICHT gecacht, sondern über
+ * `findeSitzVierer` je Nachricht neu ermittelt – im Warteraum kann sich der
+ * Platz durch Tauschen jederzeit ändern.
+ */
 type VerbindungsZustand =
   | { art: 'zweier'; tisch: Tisch; meinIndex: SpielerIndex }
-  | { art: 'vierer'; tisch: TischVierer; meinIndex: SitzIndex }
+  | { art: 'vierer'; tisch: TischVierer }
   | null
 
 function authentifiziere(anfrage: IncomingMessage): Teilnehmer | null {
@@ -119,9 +127,9 @@ function verarbeiteNachricht(
   if (nachricht.typ === 'tisch_erstellen_vierer') {
     const bettlerErlaubt = nachricht.bettlerErlaubt === true
     const tisch = erstelleTischVierer(teilnehmer, senden, bettlerErlaubt)
-    zustand.wert = { art: 'vierer', tisch, meinIndex: 0 }
+    zustand.wert = { art: 'vierer', tisch }
     senden({ typ: 'tisch_erstellt' })
-    sendeZustandAnAlleVierer(tisch)
+    sendeAktuellenZustandAnAlleVierer(tisch)
     return
   }
 
@@ -132,8 +140,8 @@ function verarbeiteNachricht(
       senden({ typ: 'fehler', text: ergebnis.fehler })
       return
     }
-    zustand.wert = { art: 'vierer', tisch: ergebnis.tisch, meinIndex: ergebnis.meinIndex }
-    sendeZustandAnAlleVierer(ergebnis.tisch)
+    zustand.wert = { art: 'vierer', tisch: ergebnis.tisch }
+    sendeAktuellenZustandAnAlleVierer(ergebnis.tisch)
     return
   }
 
@@ -172,7 +180,38 @@ function verarbeiteNachricht(
         fehlerText = 'unbekannter Nachrichtentyp'
     }
   } else {
-    const { tisch, meinIndex } = laufend
+    const { tisch } = laufend
+
+    if (nachricht.typ === 'sitz_wechseln') {
+      const zielSitz = nachricht.sitz
+      if (typeof zielSitz !== 'number' || zielSitz < 0 || zielSitz > 3) {
+        senden({ typ: 'fehler', text: 'ungültiger Sitzplatz' })
+        return
+      }
+      const fehler = wechsleSitzVierer(tisch, teilnehmer.id, zielSitz as SitzIndex)
+      if (fehler) {
+        senden({ typ: 'fehler', text: fehler })
+        return
+      }
+      sendeAktuellenZustandAnAlleVierer(tisch)
+      return
+    }
+
+    if (nachricht.typ === 'spiel_starten') {
+      const fehler = starteSpielVierer(tisch, teilnehmer.id)
+      if (fehler) {
+        senden({ typ: 'fehler', text: fehler })
+        return
+      }
+      sendeAktuellenZustandAnAlleVierer(tisch)
+      return
+    }
+
+    const meinIndex = findeSitzVierer(tisch, teilnehmer.id)
+    if (meinIndex === null) {
+      senden({ typ: 'fehler', text: 'nicht an diesem Tisch' })
+      return
+    }
     switch (nachricht.typ) {
       case 'ansage_machen':
         if (!istAnsage(nachricht.ansage)) {
@@ -254,8 +293,16 @@ export function registriereOnlineWebsocket(server: Server): void {
 
     ws.on('close', () => {
       if (!zustand.wert) return
-      if (zustand.wert.art === 'zweier') entferneVerbindung(zustand.wert.tisch, zustand.wert.meinIndex)
-      else entferneVerbindungVierer(zustand.wert.tisch, zustand.wert.meinIndex)
+      if (zustand.wert.art === 'zweier') {
+        entferneVerbindung(zustand.wert.tisch, zustand.wert.meinIndex)
+        return
+      }
+      const meinIndex = findeSitzVierer(zustand.wert.tisch, teilnehmer.id)
+      if (meinIndex === null) return
+      entferneVerbindungVierer(zustand.wert.tisch, meinIndex)
+      // Falls gerade der/die Gastgeber:in offline geht, sofort die neue
+      // Gastgeber-Zuordnung an alle noch verbundenen Spieler durchreichen.
+      if (!zustand.wert.tisch.partie) sendeAktuellenZustandAnAlleVierer(zustand.wert.tisch)
     })
   })
 

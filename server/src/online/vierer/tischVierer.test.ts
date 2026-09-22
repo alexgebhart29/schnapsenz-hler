@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   _leereAlleTischeVierFuerTests,
+  entferneVerbindungVierer,
   erstelleTischVierer,
+  findeSitzVierer,
   listeOffeneTischeVierer,
   oeffentlicheSichtVierer,
+  starteSpielVierer,
   tritteBeiVierer,
+  wechsleSitzVierer,
   ziehAnsagen,
   ziehKarteAusVierer,
   ziehPassen,
@@ -23,14 +27,16 @@ beforeEach(() => {
   _leereAlleTischeVierFuerTests()
 })
 
+/** Füllt den Tisch auf 4 Plätze auf und startet danach wie üblich sofort das Spiel (Warteraum übersprungen). */
 function fuelleAuf(tisch: TischVierer): void {
   tritteBeiVierer(tisch.code, spieler('Bert'), () => {})
   tritteBeiVierer(tisch.code, spieler('Clara'), () => {})
   tritteBeiVierer(tisch.code, spieler('Dora'), () => {})
+  starteSpielVierer(tisch, 'Anna')
 }
 
 describe('erstelleTischVierer / tritteBeiVierer', () => {
-  it('startet erst, sobald alle 4 Plätze besetzt sind – Teamzuordnung nach Sitzplatz (0+2, 1+3)', () => {
+  it('startet auch bei vollem Tisch nicht von selbst – erst der Gastgeber startet aus dem Warteraum heraus', () => {
     const tisch = erstelleTischVierer(spieler('Anna'), () => {}, true)
     expect(tisch.partie).toBeNull()
 
@@ -43,8 +49,89 @@ describe('erstelleTischVierer / tritteBeiVierer', () => {
     expect(letzter.ok).toBe(true)
     if (!letzter.ok) return
     expect(letzter.meinIndex).toBe(3)
+    // Voll, aber noch nicht gestartet.
+    expect(tisch.partie).toBeNull()
+
+    const fehler = starteSpielVierer(tisch, 'Anna')
+    expect(fehler).toBeNull()
     expect(tisch.partie).not.toBeNull()
     expect(tisch.partie!.haende.map((h) => h.length)).toEqual([2, 2, 2, 2])
+  })
+})
+
+describe('Warteraum (Teamaufstellung vor dem Start)', () => {
+  it('lässt Spieler vor dem Start frei die Plätze tauschen – Team ergibt sich aus dem Sitzplatz', () => {
+    const tisch = erstelleTischVierer(spieler('Anna'), () => {}, true)
+    tritteBeiVierer(tisch.code, spieler('Bert'), () => {})
+    tritteBeiVierer(tisch.code, spieler('Clara'), () => {})
+    tritteBeiVierer(tisch.code, spieler('Dora'), () => {})
+
+    // Anna (Platz 0) tauscht mit Clara (Platz 2) – beide bleiben aber in Team 0 (0+2).
+    let fehler = wechsleSitzVierer(tisch, 'Anna', 2)
+    expect(fehler).toBeNull()
+    expect(findeSitzVierer(tisch, 'Anna')).toBe(2)
+    expect(findeSitzVierer(tisch, 'Clara')).toBe(0)
+
+    // Bert (jetzt noch Platz 1) tauscht mit Dora (Platz 3) – wechselt aber nicht das Team.
+    fehler = wechsleSitzVierer(tisch, 'Bert', 3)
+    expect(fehler).toBeNull()
+    expect(findeSitzVierer(tisch, 'Bert')).toBe(3)
+    expect(findeSitzVierer(tisch, 'Dora')).toBe(1)
+  })
+
+  it('nur der Gastgeber (zuerst beigetreten) darf starten, und nur wenn alle 4 Plätze besetzt sind', () => {
+    const tisch = erstelleTischVierer(spieler('Anna'), () => {}, true)
+    tritteBeiVierer(tisch.code, spieler('Bert'), () => {})
+    tritteBeiVierer(tisch.code, spieler('Clara'), () => {})
+
+    expect(starteSpielVierer(tisch, 'Anna')).not.toBeNull() // noch nicht voll
+    expect(tisch.partie).toBeNull()
+
+    tritteBeiVierer(tisch.code, spieler('Dora'), () => {})
+    expect(starteSpielVierer(tisch, 'Bert')).not.toBeNull() // Bert ist nicht der Gastgeber
+    expect(tisch.partie).toBeNull()
+
+    expect(starteSpielVierer(tisch, 'Anna')).toBeNull()
+    expect(tisch.partie).not.toBeNull()
+  })
+
+  it('gibt die Gastgeber-Rolle automatisch an die/den nächste(n) noch Verbundene(n) weiter, wenn Anna offline geht', () => {
+    const tisch = erstelleTischVierer(spieler('Anna'), () => {}, true)
+    tritteBeiVierer(tisch.code, spieler('Bert'), () => {})
+    tritteBeiVierer(tisch.code, spieler('Clara'), () => {})
+    tritteBeiVierer(tisch.code, spieler('Dora'), () => {})
+
+    expect(oeffentlicheSichtVierer(tisch, 0)).toBeNull() // Warteraum, noch keine Partie/Sicht
+    entferneVerbindungVierer(tisch, findeSitzVierer(tisch, 'Anna')!)
+
+    // Bert ist als Zweiter beigetreten -> übernimmt jetzt die Gastgeber-Rolle.
+    expect(starteSpielVierer(tisch, 'Anna')).not.toBeNull() // nicht mehr Gastgeber (offline)
+    expect(tisch.partie).toBeNull()
+    expect(starteSpielVierer(tisch, 'Bert')).toBeNull()
+    expect(tisch.partie).not.toBeNull()
+  })
+
+  it('Gastgeber-Rolle folgt der Person, nicht dem Sitzplatz, auch nach einem Tausch', () => {
+    const tisch = erstelleTischVierer(spieler('Anna'), () => {}, true)
+    tritteBeiVierer(tisch.code, spieler('Bert'), () => {})
+    tritteBeiVierer(tisch.code, spieler('Clara'), () => {})
+    tritteBeiVierer(tisch.code, spieler('Dora'), () => {})
+
+    wechsleSitzVierer(tisch, 'Anna', 3) // Anna sitzt jetzt auf Platz 4, bleibt aber Gastgeberin.
+    entferneVerbindungVierer(tisch, findeSitzVierer(tisch, 'Bert')!) // Bert (Platz 1) offline, ändert nichts an Anna als Gastgeberin.
+
+    expect(starteSpielVierer(tisch, 'Anna')).toBeNull()
+    expect(tisch.partie).not.toBeNull()
+  })
+
+  it('verbietet Sitzwechsel, sobald das Spiel läuft', () => {
+    const tisch = erstelleTischVierer(spieler('Anna'), () => {}, true)
+    tritteBeiVierer(tisch.code, spieler('Bert'), () => {})
+    tritteBeiVierer(tisch.code, spieler('Clara'), () => {})
+    tritteBeiVierer(tisch.code, spieler('Dora'), () => {})
+    starteSpielVierer(tisch, 'Anna')
+
+    expect(wechsleSitzVierer(tisch, 'Bert', 2)).not.toBeNull()
   })
 
   it('erlaubt Reconnect über dieselbe Teilnehmer-Id statt einen neuen Platz zu vergeben', () => {

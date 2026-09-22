@@ -50,7 +50,7 @@ export function OnlineLobbyScreen({ state }: Props) {
   }, [zustand.status])
 
   useEffect(() => {
-    if (zustandVierer.status === 'wartet-auf-spieler' || zustandVierer.status === 'laufend') {
+    if (zustandVierer.status === 'warteraum' || zustandVierer.status === 'laufend') {
       navigiere({ name: 'online-tisch-vierer' })
     }
   }, [zustandVierer.status])

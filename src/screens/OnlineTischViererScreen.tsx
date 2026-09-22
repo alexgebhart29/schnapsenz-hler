@@ -9,6 +9,7 @@ import {
   useOnlineZustandVierer,
   type OeffentlicheSichtVierer,
   type SitzIndex,
+  type WarteraumSichtVierer,
 } from '../core/onlineSitzungVierer'
 import { farbName, farbSymbol, gleicheKarte, kartenId, sortiereHand, type Farbe } from '../core/karten'
 import { spielBeenden } from '../core/schnapsen'
@@ -32,8 +33,10 @@ export function OnlineTischViererScreen({ state, kartendesign }: Props) {
     return () => onlineAktionenVierer.trennen()
   }, [])
 
-  if (zustand.status === 'wartet-auf-spieler' && !zustand.sicht) {
-    return (
+  if (zustand.status === 'warteraum') {
+    return zustand.warteraumSicht ? (
+      <WarteraumAnsicht sicht={zustand.warteraumSicht} fehler={zustand.fehler} />
+    ) : (
       <Screen titel="Online spielen (Vierer)">
         <section className="karte" style={{ textAlign: 'center' }}>
           <h2 className="karte__titel">Warte auf weitere Spieler …</h2>
@@ -68,6 +71,89 @@ export function OnlineTischViererScreen({ state, kartendesign }: Props) {
       verknuepftesSpielId={zustand.verknuepftesSpielId}
       schneiderAktiv={state.settings.schneiderAktiv}
     />
+  )
+}
+
+/**
+ * Warteraum: Teamaufstellung wie in FIFA – zwei Team-Spalten mit je 2
+ * Plätzen, auf die man sich per Klick frei verteilen kann, bevor der/die
+ * Gastgeber:in (automatisch die am längsten wartende, noch verbundene
+ * Person) das Spiel startet.
+ */
+function WarteraumAnsicht({ sicht, fehler }: { sicht: WarteraumSichtVierer; fehler: string | null }) {
+  const teamSitze: [SitzIndex[], SitzIndex[]] = [
+    [0, 2],
+    [1, 3],
+  ]
+
+  const platzKlick = (sitz: SitzIndex) => {
+    if (sitz === sicht.meinIndex) return
+    onlineAktionenVierer.sitzWechseln(sitz)
+  }
+
+  return (
+    <Screen titel="Teams aufstellen">
+      <p className="hinweis" style={{ textAlign: 'center', margin: 0 }}>
+        Verteilt euch auf die Plätze – Platz 1+3 spielen als Team gegen Platz 2+4. Auf einen freien oder
+        besetzten Platz klicken, um dorthin zu wechseln.
+      </p>
+
+      <div className="reihe reihe--verteilt" style={{ alignItems: 'stretch', gap: 16 }}>
+        {teamSitze.map((sitze, teamIndex) => (
+          <section className="karte wachsen" key={teamIndex} style={{ textAlign: 'center' }}>
+            <h2 className="karte__titel">Team {teamIndex === 0 ? 'A' : 'B'}</h2>
+            <div className="stapel stapel--eng">
+              {sitze.map((sitz) => {
+                const name = sicht.plaetze[sitz]
+                const binIch = sitz === sicht.meinIndex
+                return (
+                  <button
+                    type="button"
+                    key={sitz}
+                    className={`btn ${binIch ? 'btn--primaer' : 'btn--geist'} btn--block`}
+                    disabled={binIch}
+                    onClick={() => platzKlick(sitz)}
+                  >
+                    {name ?? 'Frei'}
+                    {binIch ? ' (du)' : ''}
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
+
+      <section className="karte" style={{ textAlign: 'center' }}>
+        {sicht.plaetze.some((name) => name === null) ? (
+          <p className="hinweis" style={{ margin: 0 }}>
+            Warte auf weitere Spieler … Der Tisch steht in der Liste offener Tische.
+          </p>
+        ) : sicht.binGastgeber ? (
+          <p className="hinweis" style={{ margin: 0 }}>
+            Alle 4 sind da – du kannst starten, sobald die Teams passen.
+          </p>
+        ) : (
+          <p className="hinweis" style={{ margin: 0 }}>
+            Alle 4 sind da – wartet, bis der Gastgeber startet.
+          </p>
+        )}
+        <button
+          type="button"
+          className="btn btn--primaer btn--block"
+          disabled={!sicht.kannStarten}
+          onClick={() => onlineAktionenVierer.spielStarten()}
+        >
+          Spiel starten
+        </button>
+      </section>
+
+      {fehler && <p className="fehler">{fehler}</p>}
+
+      <button type="button" className="btn btn--geist btn--block" onClick={() => onlineAktionenVierer.trennen()}>
+        Verlassen
+      </button>
+    </Screen>
   )
 }
 

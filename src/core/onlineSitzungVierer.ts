@@ -3,11 +3,24 @@ import type { Farbe, Karte } from './karten'
 import { bummerlAbschliessen, entschieden, punkteAbziehen } from './schnapsen'
 import { actions, getState } from './store'
 
-export type OnlineStatusVierer = 'getrennt' | 'verbindet' | 'wartet-auf-spieler' | 'laufend'
+export type OnlineStatusVierer = 'getrennt' | 'verbindet' | 'warteraum' | 'laufend'
 
 export type SitzIndex = 0 | 1 | 2 | 3
 export type TeamIndex = 0 | 1
 export type Ansage = 'bettler' | 'schnapser' | 'gang' | 'zehnerGang' | 'bauernschnapser'
+
+/**
+ * Warteraum vor dem eigentlichen Spiel: die 4 Beitretenden sehen hier, wer
+ * schon auf welchem Platz sitzt (Platz 1+3 = Team A, Platz 2+4 = Team B) und
+ * können frei tauschen, bis der/die Gastgeber:in startet – wie eine
+ * Teamaufstellung. Spiegelbild von tischVierer.ts → WarteraumSichtVierer.
+ */
+export type WarteraumSichtVierer = {
+  meinIndex: SitzIndex
+  plaetze: (string | null)[]
+  binGastgeber: boolean
+  kannStarten: boolean
+}
 
 export const ANSAGE_LABEL: Record<Ansage, string> = {
   bettler: 'Bettler',
@@ -54,6 +67,7 @@ export type BummerlErgebnisVierer = { gewinnerTeam: TeamIndex; bummerl: [number,
 
 export type OnlineZustandVierer = {
   status: OnlineStatusVierer
+  warteraumSicht: WarteraumSichtVierer | null
   sicht: OeffentlicheSichtVierer | null
   letztesErgebnis: PartieErgebnisVierer | null
   bummerlErgebnis: BummerlErgebnisVierer | null
@@ -64,6 +78,7 @@ export type OnlineZustandVierer = {
 
 let zustand: OnlineZustandVierer = {
   status: 'getrennt',
+  warteraumSicht: null,
   sicht: null,
   letztesErgebnis: null,
   bummerlErgebnis: null,
@@ -110,6 +125,7 @@ function stelleVerbindungHer(nachErfolg: () => void): void {
 
   setzeZustand({
     status: 'verbindet',
+    warteraumSicht: null,
     sicht: null,
     letztesErgebnis: null,
     bummerlErgebnis: null,
@@ -132,15 +148,19 @@ function stelleVerbindungHer(nachErfolg: () => void): void {
     const nachricht = daten as { typ?: string; [schluessel: string]: unknown }
 
     if (nachricht.typ === 'tisch_erstellt') {
-      setzeZustand({ status: 'wartet-auf-spieler' })
+      setzeZustand({ status: 'warteraum' })
+      return
+    }
+    if (nachricht.typ === 'warteraum4') {
+      setzeZustand({ status: 'warteraum', warteraumSicht: nachricht.sicht as WarteraumSichtVierer, fehler: null })
       return
     }
     if (nachricht.typ === 'zustand4') {
       const sicht = nachricht.sicht as OeffentlicheSichtVierer
 
-      // Nur der Ersteller (Sitz 0) legt den lokalen Spiel-Datensatz an – alle
-      // Geräte teilen sich denselben synchronisierten Bestand, ein zweiter
-      // Datensatz würde das Match doppelt zählen (siehe onlineSitzung.ts).
+      // Nur Sitz 0 legt den lokalen Spiel-Datensatz an – alle Geräte teilen
+      // sich denselben synchronisierten Bestand, ein zweiter Datensatz würde
+      // das Match doppelt zählen (siehe onlineSitzung.ts, Zweier-Pendant).
       if (sicht.meinIndex === 0 && zustand.verknuepftesSpielId === null) {
         const [name0, name1, name2, name3] = sicht.spielerNamen
         const spiel = actions.neuesSpiel([name0, name1], {
@@ -151,8 +171,7 @@ function stelleVerbindungHer(nachErfolg: () => void): void {
         zustand = { ...zustand, verknuepftesSpielId: spiel.id }
       }
 
-      const alleDa = sicht.spielerNamen.every((name) => name !== '…')
-      setzeZustand({ status: alleDa ? 'laufend' : 'wartet-auf-spieler', sicht, fehler: null })
+      setzeZustand({ status: 'laufend', warteraumSicht: null, sicht, fehler: null })
       return
     }
     if (nachricht.typ === 'partie4_beendet') {
@@ -208,6 +227,14 @@ export const onlineAktionenVierer = {
     stelleVerbindungHer(() => sende({ typ: 'tisch_beitreten_vierer', tisch: tischId }))
   },
 
+  sitzWechseln(sitz: SitzIndex): void {
+    sende({ typ: 'sitz_wechseln', sitz })
+  },
+
+  spielStarten(): void {
+    sende({ typ: 'spiel_starten' })
+  },
+
   ansageMachen(ansage: Ansage): void {
     sende({ typ: 'ansage_machen', ansage })
   },
@@ -249,6 +276,7 @@ export const onlineAktionenVierer = {
     socket = null
     setzeZustand({
       status: 'getrennt',
+      warteraumSicht: null,
       sicht: null,
       letztesErgebnis: null,
       bummerlErgebnis: null,
