@@ -213,7 +213,16 @@ function stelleVerbindungHer(nachErfolg: () => void): void {
       return
     }
     if (nachricht.typ === 'fehler') {
-      setzeZustand({ fehler: String(nachricht.text) })
+      // Schlägt der Beitritt/das Erstellen selbst fehl (z. B. "Tisch schon
+      // voll"), kommt nie ein zustand hinterher – ohne diesen Reset bliebe
+      // der Status für immer bei 'verbindet' hängen und der
+      // "Beitreten"-Button dauerhaft ausgegraut.
+      const nochAmVerbinden = zustand.status === 'verbindet'
+      if (nochAmVerbinden) {
+        socket?.close()
+        socket = null
+      }
+      setzeZustand({ fehler: String(nachricht.text), status: nochAmVerbinden ? 'getrennt' : zustand.status })
     }
   })
 
