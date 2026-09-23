@@ -186,6 +186,36 @@ describe('Benutzerverwaltung', () => {
     expect(selbst.status).toBe(400)
   })
 
+  it('legt einen reinen Spielernamen ohne Passwort an und lässt ihm nachträglich eines geben', async () => {
+    const c = client()
+    await c.anmelden('admin', 'geheim-genug-123')
+
+    const angelegt = await c.json('/api/benutzer', {
+      method: 'POST',
+      body: JSON.stringify({ benutzername: 'Nurname', darfAnmelden: false }),
+    })
+    expect(angelegt.status).toBe(201)
+    expect(angelegt.daten.benutzer.darfAnmelden).toBe(false)
+
+    // Ohne Passwort keine Anmeldung möglich.
+    const versuch = client()
+    expect((await versuch.anmelden('Nurname', 'irgendwas-12345')).status).toBe(401)
+
+    const passwortGesetzt = await c.json(`/api/benutzer/${angelegt.daten.benutzer.id}/passwort`, {
+      method: 'POST',
+      body: JSON.stringify({ passwort: 'frisches-passwort-1' }),
+    })
+    expect(passwortGesetzt.status).toBe(200)
+
+    const liste = await c.json('/api/benutzer')
+    const eintrag = liste.daten.benutzer.find((b: { benutzername: string }) => b.benutzername === 'Nurname')
+    expect(eintrag.darfAnmelden).toBe(true)
+
+    // Jetzt kann sich das Konto mit dem neu gesetzten Passwort anmelden.
+    const angemeldet = client()
+    expect((await angemeldet.anmelden('Nurname', 'frisches-passwort-1')).status).toBe(200)
+  })
+
   it('lässt das eigene Passwort ändern', async () => {
     const c = client()
     await c.anmelden('spieler', 'auch-geheim-456')

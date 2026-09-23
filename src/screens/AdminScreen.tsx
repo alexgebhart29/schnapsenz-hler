@@ -81,19 +81,21 @@ export function AdminScreen() {
                 </div>
                 {eintrag.istAdmin && <span className="abzeichen abzeichen--rang">Admin</span>}
                 {!eintrag.darfAnmelden && <span className="abzeichen">nur Spielername</span>}
-                {eintrag.darfAnmelden && (
-                  <button
-                    type="button"
-                    className="btn btn--geist btn--klein"
-                    onClick={() => {
-                      setNeuesPasswort('')
-                      setZuruecksetzen(eintrag)
-                    }}
-                    aria-label={`Passwort von ${eintrag.benutzername} ändern`}
-                  >
-                    🔑
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="btn btn--geist btn--klein"
+                  onClick={() => {
+                    setNeuesPasswort('')
+                    setZuruecksetzen(eintrag)
+                  }}
+                  aria-label={
+                    eintrag.darfAnmelden
+                      ? `Passwort von ${eintrag.benutzername} ändern`
+                      : `Passwort für ${eintrag.benutzername} hinzufügen`
+                  }
+                >
+                  🔑
+                </button>
                 {eintrag.id !== sitzung.benutzer?.id && (
                   <button
                     type="button"
@@ -208,8 +210,16 @@ export function AdminScreen() {
 
       {zuruecksetzen && (
         <Dialog
-          titel={`Passwort für ${zuruecksetzen.benutzername}`}
-          text="Der Benutzer wird auf allen Geräten abgemeldet."
+          titel={
+            zuruecksetzen.darfAnmelden
+              ? `Passwort für ${zuruecksetzen.benutzername}`
+              : `Passwort für ${zuruecksetzen.benutzername} hinzufügen`
+          }
+          text={
+            zuruecksetzen.darfAnmelden
+              ? 'Der Benutzer wird auf allen Geräten abgemeldet.'
+              : `${zuruecksetzen.benutzername} war bisher nur ein Spielername ohne eigenes Konto – mit diesem Passwort kann er/sie sich ab sofort selbst anmelden.`
+          }
           onAbbrechen={() => setZuruecksetzen(null)}
           aktionen={
             <>
@@ -222,6 +232,7 @@ export function AdminScreen() {
                     await api.benutzerPasswort(zuruecksetzen.id, neuesPasswort)
                     setZuruecksetzen(null)
                     setNeuesPasswort('')
+                    await laden_()
                   } catch (ausnahme) {
                     setFehler(ausnahme instanceof Error ? ausnahme.message : 'Ändern fehlgeschlagen')
                     setZuruecksetzen(null)

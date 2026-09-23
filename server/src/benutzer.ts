@@ -94,9 +94,14 @@ export async function legeBenutzerAn(
   return benutzer
 }
 
+/**
+ * Setzt ein (neues) Passwort und schaltet die Anmeldung frei – auch für
+ * einen bisher reinen Spielernamen ohne Passwort. Ein Passwort ohne
+ * Anmeldeerlaubnis wäre nutzlos, daher immer beides zusammen.
+ */
 export async function setzePasswort(id: string, passwort: string): Promise<void> {
   db()
-    .prepare('UPDATE benutzer SET passwort_hash = ?, geaendert_am = ? WHERE id = ?')
+    .prepare('UPDATE benutzer SET passwort_hash = ?, darf_anmelden = 1, geaendert_am = ? WHERE id = ?')
     .run(await hashePasswort(passwort), Date.now(), id)
 }
 

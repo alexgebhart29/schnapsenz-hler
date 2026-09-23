@@ -161,11 +161,10 @@ routen.post('/benutzer/:id/passwort', nurJson, nurAdmin, async (req: Request, re
     res.status(404).json({ fehler: 'Benutzer nicht gefunden' })
     return
   }
-  if (!benutzer.darfAnmelden) {
-    res.status(400).json({ fehler: 'Dieser Spielername hat kein Passwort (darf sich nicht anmelden)' })
-    return
-  }
 
+  // Setzt auch bei einem reinen Spielernamen (bisher kein Passwort, darf sich
+  // nicht anmelden) ein Passwort – das Konto darf sich damit ab sofort auch
+  // anmelden (siehe setzePasswort).
   await setzePasswort(benutzer.id, passwort)
   beendeAlleSitzungen(benutzer.id)
   res.json({ ok: true })
