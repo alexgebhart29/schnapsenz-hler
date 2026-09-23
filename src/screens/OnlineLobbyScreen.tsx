@@ -5,7 +5,7 @@ import { navigiere } from '../navigation'
 import { api } from '../core/api'
 import { onlineAktionen, useOnlineZustand } from '../core/onlineSitzung'
 import { onlineAktionenVierer, useOnlineZustandVierer } from '../core/onlineSitzungVierer'
-import { parteiName } from '../core/schnapsen'
+import { alleSpieler, parteiName } from '../core/schnapsen'
 import type { AppState, Spiel } from '../core/types'
 
 type OffenerTisch = { id: string; ersteller: string }
@@ -21,6 +21,8 @@ export function OnlineLobbyScreen({ state }: Props) {
   const [offeneTischeVierer, setOffeneTischeVierer] = useState<OffenerTischVierer[] | null>(null)
   const [ladeFehler, setLadeFehler] = useState<string | null>(null)
   const [fortsetzenSpiel, setFortsetzenSpiel] = useState<Spiel | null>(null)
+  const [fortsetzenSpielVierer, setFortsetzenSpielVierer] = useState<Spiel | null>(null)
+  const [gewaehlterName, setGewaehlterName] = useState('')
 
   const laden = useCallback(() => {
     api
@@ -57,6 +59,9 @@ export function OnlineLobbyScreen({ state }: Props) {
 
   const laufendeSpiele = state.spiele.filter(
     (spiel) => spiel.status === 'laufend' && spiel.modus === 'zweier',
+  )
+  const laufendeSpieleVierer = state.spiele.filter(
+    (spiel) => spiel.status === 'laufend' && spiel.modus === 'vierer' && spiel.partner,
   )
 
   return (
@@ -145,6 +150,41 @@ export function OnlineLobbyScreen({ state }: Props) {
           Tisch eröffnen
         </button>
       </section>
+
+      {laufendeSpieleVierer.length > 0 && (
+        <section className="karte">
+          <h2 className="karte__titel">Laufendes Vierer-Spiel online fortsetzen</h2>
+          <p className="hinweis" style={{ margin: 0 }}>
+            Der aktuelle Punktestand wird zum Startwert des Online-Tisches. Die Plätze sind danach fest
+            an die vier Namen dieses Spiels gebunden.
+          </p>
+          <div className="liste">
+            {laufendeSpieleVierer.map((spiel) => (
+              <div className="eintrag" key={spiel.id}>
+                <div className="wachsen">
+                  <div className="eintrag__titel">
+                    {parteiName(spiel, 0)} vs. {parteiName(spiel, 1)}
+                  </div>
+                  <div className="eintrag__meta">
+                    Stand {spiel.punkte[0]} : {spiel.punkte[1]}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn--klein"
+                  disabled={zustandVierer.status === 'verbindet'}
+                  onClick={() => {
+                    setGewaehlterName(alleSpieler(spiel)[0] ?? '')
+                    setFortsetzenSpielVierer(spiel)
+                  }}
+                >
+                  Fortsetzen
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="karte">
         <div className="reihe reihe--verteilt">
@@ -236,6 +276,49 @@ export function OnlineLobbyScreen({ state }: Props) {
             </>
           }
         />
+      )}
+
+      {fortsetzenSpielVierer && (
+        <Dialog
+          titel="Wer bist du?"
+          text="Nur die vier registrierten Spieler dieses Spiels können teilnehmen – die Plätze werden danach automatisch anhand des angemeldeten Kontos vergeben."
+          onAbbrechen={() => setFortsetzenSpielVierer(null)}
+          aktionen={
+            <>
+              <button
+                type="button"
+                className="btn btn--primaer btn--block"
+                onClick={() => {
+                  onlineAktionenVierer.tischErstellenAusSpiel(fortsetzenSpielVierer, state.settings.bettlerAktiv)
+                  setFortsetzenSpielVierer(null)
+                }}
+              >
+                Fortsetzen
+              </button>
+              <button type="button" className="btn btn--geist" onClick={() => setFortsetzenSpielVierer(null)}>
+                Abbrechen
+              </button>
+            </>
+          }
+        >
+          <div className="feld">
+            <label className="feld__label" htmlFor="fortsetzen-vierer-rolle">
+              Ich bin …
+            </label>
+            <select
+              id="fortsetzen-vierer-rolle"
+              className="eingabe"
+              value={gewaehlterName}
+              onChange={(event) => setGewaehlterName(event.target.value)}
+            >
+              {alleSpieler(fortsetzenSpielVierer).map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </Dialog>
       )}
     </Screen>
   )

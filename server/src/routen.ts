@@ -209,7 +209,7 @@ routen.get('/online/tische', nurAngemeldet, (_req: Request, res: Response) => {
 })
 
 /** Offene Vierer-Tische (warten auf weitere Spieler). */
-routen.get('/online/tische-vierer', nurAngemeldet, (_req: Request, res: Response) => {
-  res.json({ tische: listeOffeneTischeVierer() })
+routen.get('/online/tische-vierer', nurAngemeldet, (req: Request, res: Response) => {
+  res.json({ tische: listeOffeneTischeVierer(req.benutzer!.benutzername) })
 })
 

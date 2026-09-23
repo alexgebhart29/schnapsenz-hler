@@ -286,4 +286,101 @@ describe('zaehleTischeVierVonTeilnehmer', () => {
     expect(zaehleTischeVierVonTeilnehmer('Anna')).toBe(2)
     expect(zaehleTischeVierVonTeilnehmer('Bert')).toBe(1)
   })
+
+  it('zählt auch bei einem fortgesetzten Spiel den Ersteller korrekt, egal auf welchem Platz er landet', () => {
+    const erwarteteNamen: [string, string, string, string] = ['Anna', 'Bert', 'Clara', 'Dora']
+    // Bert eröffnet, landet aber auf Platz 2 (seinem eigenen Namen entsprechend), nicht auf Platz 1.
+    erstelleTischVierer(spieler('Bert'), () => {}, true, {
+      erwarteteNamen,
+      bummerlPunkte: [24, 24],
+      bummerl: [0, 0],
+    })
+    expect(zaehleTischeVierVonTeilnehmer('Bert')).toBe(1)
+    expect(zaehleTischeVierVonTeilnehmer('Anna')).toBe(0)
+  })
+})
+
+describe('Fortsetzen eines analogen (oder online begonnenen) Vierer-Spiels', () => {
+  const erwarteteNamen: [string, string, string, string] = ['Anna', 'Bert', 'Clara', 'Dora']
+
+  it('übernimmt den mitgegebenen Stand und setzt die eröffnende Person auf ihren eigenen Platz', () => {
+    // Clara eröffnet den Tisch, gehört laut erwarteteNamen aber auf Platz 3 (Team B).
+    const tisch = erstelleTischVierer(spieler('Clara'), () => {}, true, {
+      erwarteteNamen,
+      bummerlPunkte: [10, 15],
+      bummerl: [1, 2],
+    })
+
+    expect(tisch.bummerlPunkte).toEqual([10, 15])
+    expect(tisch.bummerl).toEqual([1, 2])
+    expect(findeSitzVierer(tisch, 'Clara')).toBe(2)
+    expect(tisch.spieler[0]).toBeNull()
+  })
+
+  it('vergibt Plätze strikt nach Namen – falsche Konten werden abgelehnt, richtige landen automatisch richtig', () => {
+    const tisch = erstelleTischVierer(spieler('Anna'), () => {}, true, {
+      erwarteteNamen,
+      bummerlPunkte: [24, 24],
+      bummerl: [0, 0],
+    })
+
+    const fremder = tritteBeiVierer(tisch.code, spieler('Erik'), () => {})
+    expect(fremder.ok).toBe(false)
+
+    const bert = tritteBeiVierer(tisch.code, spieler('Bert'), () => {})
+    expect(bert.ok).toBe(true)
+    if (bert.ok) expect(bert.meinIndex).toBe(1)
+
+    const dora = tritteBeiVierer(tisch.code, spieler('Dora'), () => {})
+    expect(dora.ok).toBe(true)
+    if (dora.ok) expect(dora.meinIndex).toBe(3)
+
+    // Ein zweites Konto mit demselben Namen "Bert" (Platz ist schon besetzt, anderer Fehlertext als "gehört nicht dazu").
+    const bertNochmal = tritteBeiVierer(tisch.code, { id: 'bert-2', name: 'Bert' }, () => {})
+    expect(bertNochmal.ok).toBe(false)
+    if (!bertNochmal.ok) expect(bertNochmal.fehler).toBe('Dieser Platz ist schon besetzt')
+  })
+
+  it('verbietet Sitzwechsel bei einem fortgesetzten Spiel', () => {
+    const tisch = erstelleTischVierer(spieler('Anna'), () => {}, true, {
+      erwarteteNamen,
+      bummerlPunkte: [24, 24],
+      bummerl: [0, 0],
+    })
+    expect(wechsleSitzVierer(tisch, 'Anna', 1)).not.toBeNull()
+  })
+
+  it('blendet einen fortgesetzten Tisch für Konten aus, die nicht zu den vier Namen gehören', () => {
+    erstelleTischVierer(spieler('Anna'), () => {}, true, {
+      erwarteteNamen,
+      bummerlPunkte: [24, 24],
+      bummerl: [0, 0],
+    })
+
+    expect(listeOffeneTischeVierer('Bert')).toHaveLength(1)
+    expect(listeOffeneTischeVierer('Erik')).toHaveLength(0)
+    expect(listeOffeneTischeVierer()).toHaveLength(1) // ohne Namen (z. B. interne Nutzung) weiterhin sichtbar
+  })
+
+  it('markiert die Sicht als Fortsetzung, damit der Client keinen zweiten Spiel-Datensatz anlegt', () => {
+    const tisch = erstelleTischVierer(spieler('Anna'), () => {}, true, {
+      erwarteteNamen,
+      bummerlPunkte: [24, 24],
+      bummerl: [0, 0],
+    })
+    tritteBeiVierer(tisch.code, spieler('Bert'), () => {})
+    tritteBeiVierer(tisch.code, spieler('Clara'), () => {})
+    tritteBeiVierer(tisch.code, spieler('Dora'), () => {})
+    starteSpielVierer(tisch, 'Anna')
+
+    expect(oeffentlicheSichtVierer(tisch, 0)?.istFortsetzung).toBe(true)
+
+    const normalerTisch = erstelleTischVierer(spieler('Erik'), () => {})
+    tritteBeiVierer(normalerTisch.code, spieler('Frida'), () => {})
+    tritteBeiVierer(normalerTisch.code, spieler('Gustl'), () => {})
+    tritteBeiVierer(normalerTisch.code, spieler('Hilde'), () => {})
+    starteSpielVierer(normalerTisch, 'Erik')
+
+    expect(oeffentlicheSichtVierer(normalerTisch, 0)?.istFortsetzung).toBe(false)
+  })
 })

@@ -49,6 +49,7 @@ import {
   ziehSpritzenPassen,
   ziehTrumpfAufdecken,
   ziehTrumpfWaehlen,
+  type TischStartVierer,
   type TischVierer,
 } from './vierer/tischVierer.js'
 import type { Ansage, SitzIndex } from './vierer/spielRegelnVierer.js'
@@ -71,14 +72,31 @@ const istAnsage = (wert: unknown): wert is Ansage => GUELTIGE_ANSAGEN.includes(w
 /** Grenze gegen ein Konto, das den Server mit vielen offenen Tischen fluten will. */
 const MAX_TISCHE_PRO_KONTO = 5
 
+const istZahlenpaar = (w: unknown): w is [number, number] =>
+  Array.isArray(w) && w.length === 2 && w.every((n) => typeof n === 'number')
+
 /** Zwei-Zahlen-Tupel für einen übernommenen Bummerl-Stand beim Fortsetzen eines analogen Spiels. */
 function leseTischStart(wert: unknown): TischStart | undefined {
   if (typeof wert !== 'object' || wert === null) return undefined
   const { bummerlPunkte, bummerl } = wert as { bummerlPunkte?: unknown; bummerl?: unknown }
-  const istPaar = (w: unknown): w is [number, number] =>
-    Array.isArray(w) && w.length === 2 && w.every((n) => typeof n === 'number')
-  if (!istPaar(bummerlPunkte) || !istPaar(bummerl)) return undefined
+  if (!istZahlenpaar(bummerlPunkte) || !istZahlenpaar(bummerl)) return undefined
   return { bummerlPunkte, bummerl }
+}
+
+/** Wie leseTischStart, aber fürs Vierer inkl. der vier festen Namen. */
+function leseTischStartVierer(wert: unknown): TischStartVierer | undefined {
+  if (typeof wert !== 'object' || wert === null) return undefined
+  const { erwarteteNamen, bummerlPunkte, bummerl } = wert as {
+    erwarteteNamen?: unknown
+    bummerlPunkte?: unknown
+    bummerl?: unknown
+  }
+  const istNamensQuartett = (w: unknown): w is [string, string, string, string] =>
+    Array.isArray(w) && w.length === 4 && w.every((n) => typeof n === 'string' && n.length > 0)
+  if (!istNamensQuartett(erwarteteNamen) || !istZahlenpaar(bummerlPunkte) || !istZahlenpaar(bummerl)) {
+    return undefined
+  }
+  return { erwarteteNamen, bummerlPunkte, bummerl }
 }
 
 /**
@@ -138,8 +156,17 @@ function verarbeiteNachricht(
       senden({ typ: 'fehler', text: 'Du hast schon zu viele eigene Tische offen' })
       return
     }
+    const start = leseTischStartVierer(nachricht.start)
+    if (nachricht.start && !start) {
+      senden({ typ: 'fehler', text: 'ungültige Fortsetzungsdaten' })
+      return
+    }
+    if (start && !start.erwarteteNamen.includes(teilnehmer.name)) {
+      senden({ typ: 'fehler', text: 'Du bist in diesem Spiel nicht als Spieler eingetragen' })
+      return
+    }
     const bettlerErlaubt = nachricht.bettlerErlaubt === true
-    const tisch = erstelleTischVierer(teilnehmer, senden, bettlerErlaubt)
+    const tisch = erstelleTischVierer(teilnehmer, senden, bettlerErlaubt, start)
     zustand.wert = { art: 'vierer', tisch }
     senden({ typ: 'tisch_erstellt' })
     sendeAktuellenZustandAnAlleVierer(tisch)

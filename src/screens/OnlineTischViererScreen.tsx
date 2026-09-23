@@ -85,17 +85,19 @@ function WarteraumAnsicht({ sicht, fehler }: { sicht: WarteraumSichtVierer; fehl
     [0, 2],
     [1, 3],
   ]
+  const festeNamen = sicht.erwarteteNamen
 
   const platzKlick = (sitz: SitzIndex) => {
-    if (sitz === sicht.meinIndex) return
+    if (festeNamen || sitz === sicht.meinIndex) return
     onlineAktionenVierer.sitzWechseln(sitz)
   }
 
   return (
     <Screen titel="Teams aufstellen">
       <p className="hinweis" style={{ textAlign: 'center', margin: 0 }}>
-        Verteilt euch auf die Plätze – Platz 1+3 spielen als Team gegen Platz 2+4. Auf einen freien oder
-        besetzten Platz klicken, um dorthin zu wechseln.
+        {festeNamen
+          ? 'Fortgesetztes Spiel – die Plätze sind fest vergeben und werden beim Beitreten automatisch dem passenden Konto zugeteilt.'
+          : 'Verteilt euch auf die Plätze – Platz 1+3 spielen als Team gegen Platz 2+4. Auf einen freien oder besetzten Platz klicken, um dorthin zu wechseln.'}
       </p>
 
       <div className="reihe reihe--verteilt" style={{ alignItems: 'stretch', gap: 16 }}>
@@ -106,6 +108,19 @@ function WarteraumAnsicht({ sicht, fehler }: { sicht: WarteraumSichtVierer; fehl
               {sitze.map((sitz) => {
                 const name = sicht.plaetze[sitz]
                 const binIch = sitz === sicht.meinIndex
+                const erwarteterName = festeNamen?.[sitz]
+                if (festeNamen) {
+                  return (
+                    <div
+                      key={sitz}
+                      className="btn btn--geist btn--block"
+                      style={{ cursor: 'default', opacity: name ? 1 : 0.6 }}
+                    >
+                      {erwarteterName}
+                      {binIch ? ' (du)' : name ? ' ✓' : ' (wartet …)'}
+                    </div>
+                  )
+                }
                 return (
                   <button
                     type="button"
@@ -198,6 +213,11 @@ function TischAnsichtVierer({
         </button>
       }
     >
+      {sicht.istFortsetzung && (
+        <p className="hinweis" style={{ margin: 0, textAlign: 'center' }}>
+          Setzt euer Spiel gegen {teamName(gegnerTeam)} fort.
+        </p>
+      )}
       <div className="bummerl-leiste">
         <span className="bummerl-leiste__name">{teamName(meinTeam)}</span>
         <span className="bummerl-leiste__wert mono-zahl">{sicht.bummerl[meinTeam]}</span>

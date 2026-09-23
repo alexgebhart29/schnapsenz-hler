@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react'
 import type { Farbe, Karte } from './karten'
 import { bummerlAbschliessen, entschieden, punkteAbziehen } from './schnapsen'
 import { actions, getState } from './store'
+import type { Spiel } from './types'
 
 export type OnlineStatusVierer = 'getrennt' | 'verbindet' | 'warteraum' | 'laufend'
 
@@ -20,6 +21,8 @@ export type WarteraumSichtVierer = {
   plaetze: (string | null)[]
   binGastgeber: boolean
   kannStarten: boolean
+  /** Gesetzt bei einem fortgesetzten Spiel: Plätze sind fest vergeben, kein Tauschen möglich. */
+  erwarteteNamen: [string, string, string, string] | null
 }
 
 export const ANSAGE_LABEL: Record<Ansage, string> = {
@@ -60,6 +63,7 @@ export type OeffentlicheSichtVierer = {
   bummerl: [number, number]
   gewinnerTeam: TeamIndex | null
   spielpunkte: number | null
+  istFortsetzung: boolean
 }
 
 export type PartieErgebnisVierer = { gewinnerTeam: TeamIndex; spielpunkte: number }
@@ -74,6 +78,8 @@ export type OnlineZustandVierer = {
   fehler: string | null
   /** Lokaler Spiel-Datensatz (Historie/Rangliste), an den dieses Match gekoppelt ist. */
   verknuepftesSpielId: string | null
+  /** true, wenn ein bereits laufendes Spiel (analog oder online begonnen) fortgesetzt wurde. */
+  fortgesetzt: boolean
 }
 
 let zustand: OnlineZustandVierer = {
@@ -84,6 +90,7 @@ let zustand: OnlineZustandVierer = {
   bummerlErgebnis: null,
   fehler: null,
   verknuepftesSpielId: null,
+  fortgesetzt: false,
 }
 
 const listeners = new Set<() => void>()
@@ -131,6 +138,7 @@ function stelleVerbindungHer(nachErfolg: () => void): void {
     bummerlErgebnis: null,
     fehler: null,
     verknuepftesSpielId: null,
+    fortgesetzt: false,
   })
   const ws = new WebSocket(socketUrl())
   socket = ws
@@ -161,7 +169,10 @@ function stelleVerbindungHer(nachErfolg: () => void): void {
       // Nur Sitz 0 legt den lokalen Spiel-Datensatz an – alle Geräte teilen
       // sich denselben synchronisierten Bestand, ein zweiter Datensatz würde
       // das Match doppelt zählen (siehe onlineSitzung.ts, Zweier-Pendant).
-      if (sicht.meinIndex === 0 && zustand.verknuepftesSpielId === null) {
+      // Bei einer Fortsetzung nie automatisch anlegen: der Datensatz existiert
+      // bereits, und die eröffnende Person hat verknuepftesSpielId längst
+      // gesetzt (unabhängig davon, wer zufällig auf Sitz 0 landet).
+      if (!sicht.istFortsetzung && sicht.meinIndex === 0 && zustand.verknuepftesSpielId === null) {
         const [name0, name1, name2, name3] = sicht.spielerNamen
         const spiel = actions.neuesSpiel([name0, name1], {
           modus: 'vierer',
@@ -236,6 +247,31 @@ export const onlineAktionenVierer = {
     stelleVerbindungHer(() => sende({ typ: 'tisch_beitreten_vierer', tisch: tischId }))
   },
 
+  /**
+   * Setzt ein bereits laufendes Vierer-Spiel (analog gezählt oder online
+   * begonnen) fort: der aktuelle Punkte-/Bummerl-Stand wird zum Startwert
+   * des Tisches, die 4 Plätze sind fest an die im Spiel gespeicherten Namen
+   * gebunden (kein freies Tauschen im Warteraum) – siehe wechsleSitzVierer
+   * (Server). Team 0 = spieler[0]+partner[0] (Platz 1+3), Team 1 =
+   * spieler[1]+partner[1] (Platz 2+4).
+   */
+  tischErstellenAusSpiel(spiel: Spiel, bettlerErlaubt: boolean): void {
+    if (!spiel.partner) return
+    const erwarteteNamen: [string, string, string, string] = [
+      spiel.spieler[0],
+      spiel.spieler[1],
+      spiel.partner[0],
+      spiel.partner[1],
+    ]
+    const start = {
+      erwarteteNamen,
+      bummerlPunkte: [...spiel.punkte] as [number, number],
+      bummerl: [...spiel.bummerl] as [number, number],
+    }
+    stelleVerbindungHer(() => sende({ typ: 'tisch_erstellen_vierer', bettlerErlaubt, start }))
+    zustand = { ...zustand, verknuepftesSpielId: spiel.id, fortgesetzt: true }
+  },
+
   sitzWechseln(sitz: SitzIndex): void {
     sende({ typ: 'sitz_wechseln', sitz })
   },
@@ -291,6 +327,7 @@ export const onlineAktionenVierer = {
       bummerlErgebnis: null,
       fehler: null,
       verknuepftesSpielId: null,
+      fortgesetzt: false,
     })
   },
 }
